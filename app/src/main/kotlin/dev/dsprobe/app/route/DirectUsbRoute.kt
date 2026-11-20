@@ -186,7 +186,7 @@ class DirectUsbRoute(
                 writer.change(OutputField.PLAYER_LEDS) { it.copy(playerLedMask = req.mask) }
             }
             is OutputRequest.SetMuteLed -> writer.change(OutputField.MUTE_LED) { it.copy(muteLed = req.mode) }
-            is OutputRequest.Trigger -> return ApiAnswer.Failed("adaptive triggers are not built yet")
+            is OutputRequest.Trigger -> writer.setTrigger(req.isRight, req.effect, req.durationMs)
             is OutputRequest.AudioTone -> return ApiAnswer.Failed("audio is not built yet")
         }
         return if (taken) ApiAnswer.Ok else ApiAnswer.Failed("the pad is being handed back")

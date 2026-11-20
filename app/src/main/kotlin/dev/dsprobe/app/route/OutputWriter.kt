@@ -6,6 +6,7 @@ import dev.dsprobe.pad.OutputField
 import dev.dsprobe.pad.OutputState
 import dev.dsprobe.pad.RELEASE_FIELDS
 import dev.dsprobe.pad.RumbleMode
+import dev.dsprobe.pad.TriggerEffect
 import dev.dsprobe.pad.allOff
 import dev.dsprobe.pad.buildUsbOutput
 import java.util.EnumSet
@@ -48,6 +49,8 @@ class OutputWriter(
     private var rumbleSteps: List<RumbleStep>? = null
     private var rumbleStartMs = 0L
     private var rumbleStepIndex = -1
+    private var rightTriggerDeadlineMs: Long? = null
+    private var leftTriggerDeadlineMs: Long? = null
     private var closing = false
     private var finalPlanned = false
     private var failuresInARow = 0
@@ -141,6 +144,32 @@ class OutputWriter(
         true
     }
 
+    /**
+     * A trigger effect that ends by itself: the writer sets it back to off at the deadline, so a stalled
+     * UI can't leave a trigger stiff. [TriggerEffect.OFF] clears it now. False (and counted) once the
+     * release has begun.
+     */
+    fun setTrigger(isRight: Boolean, effect: TriggerEffect, durationMs: Int): Boolean = lock.withLock {
+        require(durationMs in 1..Limits.TRIGGER_EFFECT_DURATION_MS_MAX) { "trigger duration $durationMs ms" }
+        if (closing) {
+            droppedAfterCloseCount += 1
+            return@withLock false
+        }
+        val deadlineMs = if (effect == TriggerEffect.OFF) null else nowMs() + durationMs
+        val field = if (isRight) OutputField.RIGHT_TRIGGER else OutputField.LEFT_TRIGGER
+        if (isRight) {
+            state = state.copy(r2Effect = effect)
+            rightTriggerDeadlineMs = deadlineMs
+        } else {
+            state = state.copy(l2Effect = effect)
+            leftTriggerDeadlineMs = deadlineMs
+        }
+        dirty.add(field)
+        touched.add(field)
+        poke()
+        true
+    }
+
     /** Begins the release: the all-off report goes out last, then the writer is done. Safe to call twice. */
     fun finish() = lock.withLock {
         closing = true
@@ -172,10 +201,11 @@ class OutputWriter(
         // nothing is sent after the final report, not even a step that came due since
         if (halted || finalPlanned) return Plan.Done
         expireRumble(now)
+        expireTriggers(now)
         advanceRumble(now)
         val next = planSends(now)
-        val wakeAt = nextRumbleWakeMs()
-        // never sleep past the moment the rumble steps on or has to stop
+        val wakeAt = listOfNotNull(nextRumbleWakeMs(), rightTriggerDeadlineMs, leftTriggerDeadlineMs).minOrNull()
+        // never sleep past the moment the rumble steps on or a rumble or trigger has to stop
         if (next is Plan.Wait && wakeAt != null) return Plan.Wait(minOf(next.ms, (wakeAt - now).coerceAtLeast(1L)))
         return next
     }
@@ -205,6 +235,21 @@ class OutputWriter(
         rumbleSteps = null
         rumbleStepIndex = -1
         dirty.add(OutputField.RUMBLE)
+    }
+
+    private fun expireTriggers(now: Long) {
+        val right = rightTriggerDeadlineMs
+        if (right != null && now >= right) {
+            state = state.copy(r2Effect = TriggerEffect.OFF)
+            rightTriggerDeadlineMs = null
+            dirty.add(OutputField.RIGHT_TRIGGER)
+        }
+        val left = leftTriggerDeadlineMs
+        if (left != null && now >= left) {
+            state = state.copy(l2Effect = TriggerEffect.OFF)
+            leftTriggerDeadlineMs = null
+            dirty.add(OutputField.LEFT_TRIGGER)
+        }
     }
 
     private fun planSends(now: Long): Plan {

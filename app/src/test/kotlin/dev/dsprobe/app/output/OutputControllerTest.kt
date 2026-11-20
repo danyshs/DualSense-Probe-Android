@@ -8,6 +8,7 @@ import dev.dsprobe.app.route.Route
 import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.MuteLed
 import dev.dsprobe.pad.Rgb
+import dev.dsprobe.pad.TriggerEffect
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -202,5 +203,63 @@ class OutputControllerTest {
         assertEquals("the held colour died with the route", 2, rig.route.sent.size)
         c.setRumble(1, 0)
         assertEquals(Limits.RUMBLE_DURATION_MS_MAX, (rig.route.sent.last() as OutputRequest.Rumble).durationMs)
+    }
+
+    private fun trigger(i: Int = -1) = (if (i < 0) rig.route.sent.last() else rig.route.sent[i]) as OutputRequest.Trigger
+
+    @Test fun pressingResistSendsTheSlidersValuesWithTheThirtySecondLimit() {
+        c.setTriggerLevels(true, 0x40, 0x80)
+        assertTrue("sliders alone send nothing while the effect is off", rig.route.sent.isEmpty())
+        c.pressTrigger(true)
+        val sent = trigger()
+        assertTrue(sent.isRight)
+        assertEquals(TriggerEffect.resistance(0x40u, 0x80u), sent.effect)
+        assertEquals(Limits.TRIGGER_EFFECT_DURATION_MS_MAX, sent.durationMs)
+        assertTrue(c.shown.value.r2.on)
+        assertEquals(TriggerShown.IDLE, c.shown.value.l2)
+    }
+
+    @Test fun theForceIsClampedToTheCapAndNeverSentAboveIt() {
+        c.setTriggerLevels(false, 0x10, Limits.TRIGGER_FORCE_MAX + 1)
+        c.pressTrigger(false)
+        assertEquals(TriggerEffect.resistance(0x10u, Limits.TRIGGER_FORCE_MAX.toUByte()), trigger().effect)
+        c.setTriggerLevels(false, 999, 999)
+        assertEquals(TriggerEffect.resistance(AppLimits.TRIGGER_START_MAX.toUByte(), Limits.TRIGGER_FORCE_MAX.toUByte()), trigger().effect)
+    }
+
+    @Test fun movingASliderWhileOnResendsAtOnceAndDoesNotExtendTheThirtySeconds() {
+        c.pressTrigger(true)
+        rig.now += 10_000
+        c.setTriggerLevels(true, 0x50, 0x60)
+        assertEquals(TriggerEffect.resistance(0x50u, 0x60u), trigger().effect)
+        assertEquals(20_000, trigger().durationMs)
+    }
+
+    @Test fun offClearsTheEffectAndTheNextPressStartsAFreshClock() {
+        c.pressTrigger(false)
+        rig.now += 5_000
+        c.clearTrigger(false)
+        assertEquals(TriggerEffect.OFF, trigger().effect)
+        assertTrue(!c.shown.value.l2.on)
+        c.pressTrigger(false)
+        assertEquals(Limits.TRIGGER_EFFECT_DURATION_MS_MAX, trigger().durationMs)
+    }
+
+    @Test fun theShownTriggerGoesOffWhenTheThirtySecondsRunOut() {
+        c.pressTrigger(true)
+        rig.now += 12_000
+        c.tick()
+        assertEquals(18_000L, c.shown.value.r2.remainingMs)
+        rig.now += 18_000
+        c.tick()
+        assertTrue(!c.shown.value.r2.on)
+        assertEquals(0L, c.shown.value.r2.remainingMs)
+    }
+
+    @Test fun aRefusedTriggerShowsOffAndTheAnswer() {
+        rig.route.answer = ApiAnswer.Failed("no")
+        c.pressTrigger(true)
+        assertTrue(!c.shown.value.r2.on)
+        assertEquals(ApiAnswer.Failed("no"), c.shown.value.lastAnswer)
     }
 }

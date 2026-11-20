@@ -6,6 +6,7 @@ import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.OutputField
 import dev.dsprobe.pad.OutputState
 import dev.dsprobe.pad.Rgb
+import dev.dsprobe.pad.TriggerEffect
 import dev.dsprobe.pad.allOff
 import dev.dsprobe.pad.buildUsbOutput
 import org.junit.Assert.assertArrayEquals
@@ -162,5 +163,47 @@ class OutputWriterTest {
         rig.drain()
         assertTrue(rig.sent.isNotEmpty())
         assertTrue(rig.sent.all { it.size == Limits.USB_OUTPUT_REPORT_BYTES })
+    }
+
+    @Test fun aTriggerEffectIsSetBackToOffAtItsDeadlineByTheWriterItself() {
+        w.setTrigger(true, TriggerEffect.resistance(0x30u, 0xc0u), 100)
+        w.pumpOnce()
+        assertEquals(0x30, rig.sent[0][12].toInt())
+        rig.now += 99
+        w.pumpOnce()
+        assertEquals("not yet", 1, rig.sent.size)
+        rig.now += 1
+        w.pumpOnce()
+        assertArrayEquals(buildUsbOutput(off, setOf(OutputField.RIGHT_TRIGGER)), rig.sent[1])
+    }
+
+    @Test fun theWriterNeverSleepsPastATriggerDeadline() {
+        w.setTrigger(false, TriggerEffect.resistance(1u, 2u), 50)
+        w.pumpOnce()
+        val wait = w.pumpOnce()
+        assertTrue("slept $wait ms", wait != null && wait <= 50L)
+    }
+
+    @Test fun aTriggerDurationPastTheLimitIsRefused() {
+        assertThrows(IllegalArgumentException::class.java) {
+            w.setTrigger(true, TriggerEffect.resistance(1u, 2u), Limits.TRIGGER_EFFECT_DURATION_MS_MAX + 1)
+        }
+        assertThrows(IllegalArgumentException::class.java) { w.setTrigger(true, TriggerEffect.OFF, 0) }
+    }
+
+    @Test fun aTriggerAfterTheFinishIsDroppedAndCounted() {
+        w.finish()
+        assertFalse(w.setTrigger(true, TriggerEffect.resistance(1u, 2u), 100))
+        assertEquals(1L, w.droppedAfterCloseCount)
+    }
+
+    @Test fun theFinishAllOffClearsBothTriggers() {
+        w.setTrigger(true, TriggerEffect.resistance(1u, 2u), 1_000)
+        w.setTrigger(false, TriggerEffect.resistance(3u, 4u), 1_000)
+        w.finish()
+        rig.drain()
+        val last = rig.sent.last()
+        assertArrayEquals(w.allOffReport(), last)
+        assertTrue((11..32).all { last[it].toInt() == 0 })
     }
 }

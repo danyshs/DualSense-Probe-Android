@@ -10,6 +10,7 @@ import dev.dsprobe.app.route.totalDurationMs
 import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.MuteLed
 import dev.dsprobe.pad.RumbleMode
+import dev.dsprobe.pad.TriggerEffect
 import dev.dsprobe.pad.Rgb
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +23,13 @@ enum class AskKind { LIGHTBAR, PLAYER_LEDS, MUTE_LED, RUMBLE }
 
 /** What Android answered to a light request it may have silently ignored; the user is asked whether anything changed. */
 data class PendingAsk(val kind: AskKind, val sent: String, val answer: ApiAnswer)
+
+/** One trigger's resistance as the panel shows it: [on] while the effect is live, with [remainingMs] left. */
+data class TriggerShown(val on: Boolean, val start: Int, val force: Int, val remainingMs: Long) {
+    companion object {
+        val IDLE = TriggerShown(false, AppLimits.TRIGGER_START_DEFAULT, Limits.TRIGGER_FORCE_MAX, 0L)
+    }
+}
 
 /** What the screen shows of the outputs: what was last sent, not something the pad confirmed. */
 data class OutputsShown(
@@ -37,6 +45,8 @@ data class OutputsShown(
     val rumbleMode: RumbleMode? = null,
     /** The motor values the route reports sending, newest last, for the two-trace strip. */
     val rumbleTrace: List<MotorLevels> = emptyList(),
+    val r2: TriggerShown = TriggerShown.IDLE,
+    val l2: TriggerShown = TriggerShown.IDLE,
 ) {
     companion object {
         val IDLE = OutputsShown(Rgb(0u, 0u, 0u), 0, MuteLed.OFF, 0, 0, 0L, null, null)
@@ -69,6 +79,8 @@ class OutputController(
     private var rumbleEndsAtMs = 0L
     private var heldColour: Rgb? = null
     private var lastColourSendMs: Long? = null
+    private var rightTriggerEndsAtMs = 0L
+    private var leftTriggerEndsAtMs = 0L
 
     /**
      * Strengths 0..255. A press gets one [Limits.RUMBLE_DURATION_MS_MAX] from its first non-zero value:
@@ -125,6 +137,73 @@ class OutputController(
         if (next != current) mutable.value = next
     }
 
+    private fun triggerShown(isRight: Boolean): TriggerShown = if (isRight) mutable.value.r2 else mutable.value.l2
+
+    private fun triggerEndsAtMs(isRight: Boolean): Long = if (isRight) rightTriggerEndsAtMs else leftTriggerEndsAtMs
+
+    private fun setTriggerEnds(isRight: Boolean, endsAtMs: Long) {
+        if (isRight) rightTriggerEndsAtMs = endsAtMs else leftTriggerEndsAtMs = endsAtMs
+    }
+
+    private fun showTrigger(isRight: Boolean, shown: TriggerShown, answer: ApiAnswer?) {
+        val current = mutable.value
+        val next = if (isRight) current.copy(r2 = shown) else current.copy(l2 = shown)
+        mutable.value = if (answer == null) next else next.copy(lastAnswer = answer)
+    }
+
+    /**
+     * Moves a trigger's sliders. While its resistance is live the new values go out at once and the
+     * 30 s limit keeps counting from the press; otherwise they are only remembered for the next press.
+     */
+    fun setTriggerLevels(isRight: Boolean, start: Int, force: Int) {
+        val s = start.coerceIn(0, AppLimits.TRIGGER_START_MAX)
+        val f = force.coerceIn(0, Limits.TRIGGER_FORCE_MAX)
+        val now = nowMs()
+        val current = triggerShown(isRight)
+        if (!current.on || triggerEndsAtMs(isRight) <= now) {
+            showTrigger(isRight, current.copy(start = s, force = f), null)
+            return
+        }
+        sendResistance(isRight, s, f, now)
+    }
+
+    /** Starts the resistance with the sliders' values: one [Limits.TRIGGER_EFFECT_DURATION_MS_MAX] from this press. */
+    fun pressTrigger(isRight: Boolean) {
+        val now = nowMs()
+        val current = triggerShown(isRight)
+        setTriggerEnds(isRight, now + Limits.TRIGGER_EFFECT_DURATION_MS_MAX)
+        sendResistance(isRight, current.start, current.force, now)
+    }
+
+    /** Sends the effect off now. */
+    fun clearTrigger(isRight: Boolean) {
+        val answer = send(OutputRequest.Trigger(isRight, TriggerEffect.OFF, 1))
+        setTriggerEnds(isRight, 0L)
+        showTrigger(isRight, triggerShown(isRight).copy(on = false, remainingMs = 0L), answer)
+    }
+
+    private fun sendResistance(isRight: Boolean, start: Int, force: Int, now: Long) {
+        val remainingMs = triggerEndsAtMs(isRight) - now
+        check(remainingMs in 1..Limits.TRIGGER_EFFECT_DURATION_MS_MAX.toLong()) { "trigger time left $remainingMs" }
+        check(start in 0..AppLimits.TRIGGER_START_MAX && force in 0..Limits.TRIGGER_FORCE_MAX) { "trigger levels $start $force" }
+        val effect = TriggerEffect.resistance(start.toUByte(), force.toUByte())
+        val answer = send(OutputRequest.Trigger(isRight, effect, remainingMs.toInt()))
+        val taken = answer == ApiAnswer.Ok
+        if (!taken) setTriggerEnds(isRight, 0L)
+        showTrigger(isRight, TriggerShown(taken, start, force, if (taken) remainingMs else 0L), answer)
+    }
+
+    // the writer clears an expired effect by itself; this only brings the panel into line
+    private fun tickTriggers(now: Long) {
+        for (isRight in listOf(true, false)) {
+            val current = triggerShown(isRight)
+            if (!current.on) continue
+            val remainingMs = (triggerEndsAtMs(isRight) - now).coerceAtLeast(0L)
+            val next = if (remainingMs == 0L) current.copy(on = false, remainingMs = 0L) else current.copy(remainingMs = remainingMs)
+            if (next != current) showTrigger(isRight, next, null)
+        }
+    }
+
     /** The colour to show now; sent at once when the interval allows, else held and sent by [tick]. */
     fun setLightbar(rgb: Rgb) {
         heldColour = rgb
@@ -139,6 +218,7 @@ class OutputController(
         sendHeldColour(force = false)
         val now = nowMs()
         sampleRumble(now)
+        tickTriggers(now)
         val remaining = remainingMs(now)
         val current = mutable.value
         if (current.rumbleRemainingMs == remaining) return
@@ -187,6 +267,8 @@ class OutputController(
         rumbleEndsAtMs = 0L
         heldColour = null
         lastColourSendMs = null
+        rightTriggerEndsAtMs = 0L
+        leftTriggerEndsAtMs = 0L
     }
 
     // Android can't confirm lights, so every light request on it asks the user; Direct USB shows its effect on the pad

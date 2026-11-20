@@ -158,7 +158,10 @@ fun OutputsScreen(
                 reasons[Feature.MUTE_LED]?.let { LockNote(it) }
                 MuteLedSection(usable(Feature.MUTE_LED), shown.muteLed, outputs)
             }
-            reasons[Feature.ADAPTIVE_TRIGGERS]?.let { Section(R.string.section_triggers) { LockNote(it) } }
+            Section(R.string.section_triggers) {
+                reasons[Feature.ADAPTIVE_TRIGGERS]?.let { LockNote(it) }
+                TriggerSection(usable(Feature.ADAPTIVE_TRIGGERS), ui, shown.r2, shown.l2, outputs)
+            }
         }
     }
 }

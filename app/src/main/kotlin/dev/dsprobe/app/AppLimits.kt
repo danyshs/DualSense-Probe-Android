@@ -18,6 +18,8 @@ object AppLimits {
     const val RUMBLE_PULSE_RATE_HZ_DEFAULT = 4
     const val RUMBLE_INTENSITY_DEFAULT = 200 // a guess: strong but not full, so full is a visible step up
     const val RUMBLE_TRACE_SAMPLES_MAX = 120
+    const val TRIGGER_START_MAX = 255 // the start position is one byte
+    const val TRIGGER_START_DEFAULT = 0x30 // the start of the proven effect 01 30 c0
     const val COLOUR_SEND_INTERVAL_MS_MIN = 33L // a guess: about 30 colour updates a second; tune on the phone
 
     const val READ_TIMEOUT_MS = 100

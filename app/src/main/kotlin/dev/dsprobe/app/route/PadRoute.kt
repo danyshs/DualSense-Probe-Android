@@ -15,7 +15,8 @@ sealed interface OutputRequest {
     data class Lightbar(val rgb: Rgb) : OutputRequest
     data class PlayerLeds(val mask: Int) : OutputRequest
     data class SetMuteLed(val mode: MuteLed) : OutputRequest
-    data class Trigger(val isRight: Boolean, val effect: TriggerEffect) : OutputRequest
+    /** A trigger effect that the route sets back to off after [durationMs]. */
+    data class Trigger(val isRight: Boolean, val effect: TriggerEffect, val durationMs: Int) : OutputRequest
     data class AudioTone(val route: AudioRoute, val freqHz: Int) : OutputRequest
 }
 

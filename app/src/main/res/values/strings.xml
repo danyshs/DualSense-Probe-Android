@@ -91,6 +91,16 @@
     <string name="section_player_leds">Player LEDs</string>
     <string name="section_mute_led">Mute LED</string>
     <string name="section_triggers">Adaptive triggers</string>
+    <string name="trigger_label_l2">L2</string>
+    <string name="trigger_label_r2">R2</string>
+    <string name="trigger_start">Start position: %1$d</string>
+    <string name="trigger_force">Force: %1$d of %2$d</string>
+    <string name="trigger_resist">Resist</string>
+    <string name="trigger_off">Off</string>
+    <string name="trigger_status">%1$s %2$3d s left</string>
+    <string name="trigger_status_on">resisting</string>
+    <string name="trigger_status_off">off     </string>
+    <string name="trigger_other_modes">Other effect modes: none proven yet</string>
     <string name="locked_reason">Locked: %1$s</string>
     <string name="label_rumble_left">Left motor</string>
     <string name="label_rumble_right">Right motor</string>

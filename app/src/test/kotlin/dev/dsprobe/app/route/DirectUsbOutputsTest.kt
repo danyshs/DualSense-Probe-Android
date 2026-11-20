@@ -3,8 +3,10 @@ package dev.dsprobe.app.route
 import dev.dsprobe.app.TestFixtures
 import dev.dsprobe.app.live.EventFeed
 import dev.dsprobe.app.live.LiveState
+import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.MuteLed
 import dev.dsprobe.pad.Rgb
+import dev.dsprobe.pad.TriggerEffect
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -44,7 +46,8 @@ private fun rgb(hex: String): Rgb {
     return Rgb((v shr 16).toUByte(), ((v shr 8) and 0xff).toUByte(), (v and 0xff).toUByte())
 }
 
-private val PREFIXES = listOf("lightbar-", "player-leds-", "mute-led-", "rumble-")
+private val PREFIXES = listOf("lightbar-", "player-leds-", "mute-led-", "rumble-", "r2-", "l2-")
+private val PUSH = TriggerEffect.resistance(0x30u, 0xc0u)
 
 class DirectUsbOutputsTest {
     private val log = CopyOnWriteArrayList<String>()
@@ -146,15 +149,60 @@ class DirectUsbOutputsTest {
             "000000", "0000ff", "00ff00", "00ffff", "ff0000", "ffff00", "ffffff",
         ).map { "lightbar-$it" } + listOf("00", "01", "02", "04", "08", "10", "1f").map { "player-leds-$it" } +
             listOf(0, 1, 2).map { "mute-led-$it" } +
-            listOf("right", "left", "both", "off", "v2-both", "v2-off").map { "rumble-$it" }
+            listOf("right", "left", "both", "off", "v2-both", "v2-off").map { "rumble-$it" } +
+            listOf("r2-resistance", "r2-off", "l2-resistance", "l2-off")
         val onDisk = TestFixtures.names("golden").filter { n -> PREFIXES.any { n.startsWith(it) } }
         assertEquals(covered.sorted(), onDisk)
     }
 
-    @Test fun triggersAndAudioAreRefusedUntilTheirStepsAndNothingIsSent() {
+    @Test fun theResistanceAndTheOffOfBothTriggersBecomeTheirGoldenReports() {
+        open(null)
+        check(
+            linkedMapOf(
+                "r2-resistance" to OutputRequest.Trigger(true, PUSH, 1_000),
+                "r2-off" to OutputRequest.Trigger(true, TriggerEffect.OFF, 1),
+                "l2-resistance" to OutputRequest.Trigger(false, PUSH, 1_000),
+                "l2-off" to OutputRequest.Trigger(false, TriggerEffect.OFF, 1),
+            ),
+        )
+    }
+
+    @Test fun aTriggerEffectEndsByItselfWithTheGoldenOffReport() {
+        open(null)
+        route!!.send(OutputRequest.Trigger(true, PUSH, 40))
+        waitForWrites(2)
+        assertArrayEquals(TestFixtures.bytes("golden/r2-resistance.hex"), link.writes[0])
+        assertArrayEquals(TestFixtures.bytes("golden/r2-off.hex"), link.writes[1])
+    }
+
+    @Test fun theReleaseAllOffClearsBothTriggers() {
         open(null)
         val r = route!!
-        assertTrue(r.send(OutputRequest.Trigger(true, dev.dsprobe.pad.TriggerEffect.OFF)) is ApiAnswer.Failed)
+        r.send(OutputRequest.Trigger(true, PUSH, 1_000))
+        r.send(OutputRequest.Trigger(false, PUSH, 1_000))
+        waitForWrites(1)
+        r.release()
+        val last = link.writes.last()
+        assertArrayEquals(TestFixtures.bytes("golden/release-all-off.hex"), last)
+        // flag 0 carries both trigger bits and every trigger byte is zero
+        assertEquals(0x0c, last[1].toInt() and 0x0c)
+        assertTrue((11..32).all { last[it].toInt() == 0 })
+    }
+
+    @Test fun aTriggerDurationPastTheLimitIsOurBugAndIsRefusedLoudly() {
+        open(null)
+        assertThrows(IllegalArgumentException::class.java) {
+            route!!.send(OutputRequest.Trigger(true, PUSH, Limits.TRIGGER_EFFECT_DURATION_MS_MAX + 1))
+        }
+    }
+
+    @Test fun aForcePastTheCapCannotBeBuilt() {
+        assertThrows(IllegalArgumentException::class.java) { TriggerEffect.resistance(0x30u, (Limits.TRIGGER_FORCE_MAX + 1).toUByte()) }
+    }
+
+    @Test fun audioIsRefusedUntilItsStepAndNothingIsSent() {
+        open(null)
+        val r = route!!
         assertTrue(r.send(OutputRequest.AudioTone(dev.dsprobe.pad.AudioRoute.SPEAKER, 440)) is ApiAnswer.Failed)
         Thread.sleep(3 * IDLE_READ_MS)
         assertEquals(0, link.writes.size)
