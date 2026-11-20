@@ -58,7 +58,10 @@ fun LiveScreen(
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         HeaderStrip(state, s.battery, s.headphonesIn, locked, answers, actions.onRefreshAnswers, actions.onSwitch, actions.onBack, actions.onCrashNow)
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Button(onClick = actions.onOpenOutputs) { Text(stringResource(R.string.open_outputs)) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = actions.onOpenOutputs) { Text(stringResource(R.string.open_outputs)) }
+                Button(onClick = actions.onOpenDebug) { Text(stringResource(R.string.open_debug)) }
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 TriggerBar(stringResource(R.string.label_l2), s.l2, ui.feel.l2Peak)
                 ControllerDrawing(ui, reasons.keys, shown, Modifier.weight(1f))

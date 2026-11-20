@@ -1,9 +1,14 @@
 package dev.dsprobe.app.route
 
 import dev.dsprobe.app.AppLimits
+import dev.dsprobe.app.debug.UsbOutputTrace
+import dev.dsprobe.app.debug.UsbSend
+import dev.dsprobe.app.debug.requestText
 import dev.dsprobe.app.live.EventFeed
 import dev.dsprobe.app.live.FeedEvent
 import dev.dsprobe.app.live.LiveState
+import dev.dsprobe.app.live.PadState
+import dev.dsprobe.pad.FirmwareInfo
 import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.OutputField
 import dev.dsprobe.pad.ParseResult
@@ -11,6 +16,7 @@ import dev.dsprobe.pad.RumbleMode
 import dev.dsprobe.pad.parseFirmwareInfo
 import dev.dsprobe.pad.parseUsbInput
 import dev.dsprobe.pad.supportsRumbleV2
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 private const val NANOS_PER_MS = 1_000_000L
@@ -30,7 +36,9 @@ class DirectUsbRoute(
     private val log: (String) -> Unit,
     nowMs: () -> Long = { System.nanoTime() / NANOS_PER_MS },
 ) : PadRoute {
-    val writer = OutputWriter({ link.writeReport(it) }, nowMs, ::fault, log)
+    private val outputTrace = UsbOutputTrace()
+    private val requestByField = ConcurrentHashMap<OutputField, String>()
+    val writer = OutputWriter({ link.writeReport(it) }, nowMs, ::fault, log, ::traceSend)
     private val readerStop = AtomicBoolean(false)
     private val faulted = AtomicBoolean(false)
     private val released = AtomicBoolean(false)
@@ -49,6 +57,11 @@ class DirectUsbRoute(
 
     @Volatile
     var lateDropCount = 0
+        private set
+
+    /** The firmware the pad reported when the route opened; null when it could not be read. */
+    @Volatile
+    var firmware: FirmwareInfo? = null
         private set
 
     companion object {
@@ -75,6 +88,7 @@ class DirectUsbRoute(
             link.readFeature(Limits.USB_FEATURE_FIRMWARE_REPORT_ID, Limits.USB_FEATURE_FIRMWARE_REPORT_BYTES) ?: ByteArray(0)
         }
         val info = reply?.let(::parseFirmwareInfo)
+        firmware = info
         if (info == null) {
             log("firmware report unreadable: rumble stays in compatible mode")
             return
@@ -111,18 +125,43 @@ class DirectUsbRoute(
 
     private fun onReport(bytes: ByteArray) {
         if (readerStop.get()) return
-        if (feed.isActive) feed.publish(FeedEvent(System.nanoTime(), Route.DIRECT_USB, bytes, null))
         when (val parsed = parseUsbInput(bytes)) {
             is ParseResult.Ok -> {
-                live.publish(toPadState(parsed.input))
+                val state = toPadState(parsed.input)
+                live.publish(state)
                 reportsRead += 1
+                publishInput(bytes, state)
             }
             // bad pad data is counted and logged, never asserted
             is ParseResult.Rejected -> {
+                publishInput(bytes, null)
                 rejectedCount += 1
                 if (rejectedCount <= AppLimits.REJECTED_REPORTS_LOGGED_MAX) log("input report rejected: ${parsed.reason} ${parsed.detail}")
             }
         }
+    }
+
+    private fun publishInput(bytes: ByteArray, state: PadState?) {
+        if (feed.isActive) feed.publish(FeedEvent(System.nanoTime(), Route.DIRECT_USB, bytes, null, null, state))
+    }
+
+    // on the writer thread, after every send: the shadow always moves, the feed only hears of it while subscribed
+    private fun traceSend(report: ByteArray, fields: Set<OutputField>, ok: Boolean, isFinal: Boolean, isResend: Boolean) {
+        val request = fields.joinToString(" + ") { requestByField[it] ?: "none (a timed step or refresh)" }
+        val row = outputTrace.row(UsbSend(report, fields, request, ok, isFinal, isResend), System.nanoTime() / NANOS_PER_MS) ?: return
+        if (feed.isActive) feed.publish(FeedEvent(System.nanoTime(), Route.DIRECT_USB, report.copyOf(), row.text, row.control))
+    }
+
+    private fun remember(req: OutputRequest) {
+        val field = when (req) {
+            is OutputRequest.Rumble, is OutputRequest.RumblePattern -> OutputField.RUMBLE
+            is OutputRequest.Lightbar -> OutputField.LIGHTBAR
+            is OutputRequest.PlayerLeds -> OutputField.PLAYER_LEDS
+            is OutputRequest.SetMuteLed -> OutputField.MUTE_LED
+            is OutputRequest.Trigger -> if (req.isRight) OutputField.RIGHT_TRIGGER else OutputField.LEFT_TRIGGER
+            is OutputRequest.SetRumbleMode, is OutputRequest.AudioTone -> return
+        }
+        requestByField[field] = requestText(req)
     }
 
     /**
@@ -173,6 +212,7 @@ class DirectUsbRoute(
 
     /** Every control becomes one change of the writer's state; the writer builds the bytes. */
     override fun send(req: OutputRequest): ApiAnswer {
+        remember(req)
         val taken = when (req) {
             is OutputRequest.Rumble -> writer.setRumble(req.left, req.right, req.durationMs)
             is OutputRequest.RumblePattern -> writer.playRumble(req.steps)

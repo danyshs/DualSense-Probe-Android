@@ -10,6 +10,8 @@ import java.util.Date
  * previous handler crash the app as usual. Never joins a thread (the crashing one may be the writer).
  */
 object CrashHandler {
+    const val RECORD_FILE = "crash-record.txt"
+
     fun install(recordFile: File, describeRoute: () -> String, log: (String) -> Unit) {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->

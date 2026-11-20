@@ -4,6 +4,18 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// the short commit of the tree being built, for the log header; "unknown" outside a git checkout
+fun gitCommit(): String =
+    try {
+        val out = providers.exec {
+            commandLine("git", "rev-parse", "--short", "HEAD")
+            isIgnoreExitValue = true
+        }
+        out.standardOutput.asText.get().trim().ifEmpty { "unknown" }
+    } catch (e: Exception) {
+        "unknown"
+    }
+
 android {
     namespace = "dev.dsprobe.app"
     compileSdk = 35
@@ -14,6 +26,7 @@ android {
         targetSdk = 35
         versionCode = 2
         versionName = "0.2.0"
+        buildConfigField("String", "GIT_COMMIT", "\"${gitCommit()}\"")
     }
 
     compileOptions {
@@ -21,7 +34,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 
     // the pad's report fixtures are the single copy: the mapper and writer tests read them too
     sourceSets["test"].resources.srcDir("../pad/src/test/resources")

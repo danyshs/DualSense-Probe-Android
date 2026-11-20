@@ -22,6 +22,7 @@ fun AppRoot(session: PadSession) {
     val answers by session.androidRoute.answers.collectAsState()
     val shown by session.outputs.shown.collectAsState()
     var wantsOutputs by rememberSaveable { mutableStateOf(false) }
+    var wantsDebug by rememberSaveable { mutableStateOf(false) }
     val locked = lockedFor(state, answers)
     val actions = remember(session) {
         ScreenActions(
@@ -31,14 +32,17 @@ fun AppRoot(session: PadSession) {
             onCrashNow = if (session.crashNowAvailable) session::crashNow else null,
             onOpenOutputs = { wantsOutputs = true },
             onCloseOutputs = { wantsOutputs = false },
+            onOpenDebug = { wantsDebug = true },
+            onCloseDebug = { wantsDebug = false },
         )
     }
     DsProbeTheme {
         Surface(Modifier.fillMaxSize(), color = DsColors.Background, contentColor = DsColors.Text) {
             Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                when (screenFor(state, wantsOutputs)) {
+                when (screenFor(state, wantsOutputs, wantsDebug)) {
                     Screen.LIVE -> LiveScreen(state, session.live, locked, answers, shown, actions)
                     Screen.OUTPUTS -> OutputsScreen(state, session.live, locked, answers, shown, session.outputs, actions)
+                    Screen.DEBUG -> DebugScreen(session, actions.onCloseDebug)
                     Screen.TOO_MANY -> TooManyScreen()
                 }
             }

@@ -1,0 +1,163 @@
+package dev.dsprobe.app.route
+
+import android.hardware.Sensor
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
+import dev.dsprobe.app.debug.requestControl
+import dev.dsprobe.app.debug.requestText
+import dev.dsprobe.app.debug.traceLine
+import dev.dsprobe.app.live.FeedEvent
+import dev.dsprobe.app.live.PadState
+import dev.dsprobe.app.output.AskKind
+import dev.dsprobe.pad.Button
+import java.util.Locale
+
+// Pure descriptions of what the Android route touched: the hook, the constant's name and value, the
+// arguments, and Android's answer. No Android object is called, so tests build the same rows from fakes.
+
+const val HOOK_KEY = "Activity.dispatchKeyEvent"
+const val HOOK_MOTION = "Activity.dispatchGenericMotionEvent"
+const val HOOK_TOUCH = "Activity.dispatchTouchEvent"
+const val HOOK_SENSOR = "SensorEventListener.onSensorChanged"
+
+/** Every axis at rest: where the first reading is compared from. */
+val AXES_AT_REST = AxisReading(0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f)
+
+private const val AXIS_MARGIN_UNITS = 0.0005f
+
+private val SOURCE_NAMES = listOf(
+    "KEYBOARD" to InputDevice.SOURCE_KEYBOARD, "GAMEPAD" to InputDevice.SOURCE_GAMEPAD,
+    "JOYSTICK" to InputDevice.SOURCE_JOYSTICK, "MOUSE" to InputDevice.SOURCE_MOUSE,
+    "TOUCHPAD" to InputDevice.SOURCE_TOUCHPAD, "SENSOR" to InputDevice.SOURCE_SENSOR,
+)
+
+private fun sourceText(source: Int): String {
+    val names = SOURCE_NAMES.filter { source and it.second == it.second }.joinToString("|") { it.first }
+    return String.format(Locale.ROOT, "0x%08x %s", source, names.ifEmpty { "none" })
+}
+
+fun buttonControl(button: Button): String = "in.button.${button.name.lowercase()}"
+
+/** One key event from the pad. Unmapped codes are named with their code and scan code, never dropped. */
+fun keyTraceEvent(
+    timeNs: Long, deviceId: Int, down: Boolean, keyCode: Int, keyName: String, scanCode: Int, source: Int, state: PadState,
+): FeedEvent {
+    val button = buttonForKeyCode(keyCode)
+    val control = if (button != null) buttonControl(button) else "in.key.unmapped.$keyCode"
+    val action = if (down) "KeyEvent.ACTION_DOWN = ${KeyEvent.ACTION_DOWN}" else "KeyEvent.ACTION_UP = ${KeyEvent.ACTION_UP}"
+    val meaning = if (button != null) "maps to Button.${button.name}" else "UNMAPPED key code, no pad control is moved"
+    val detail = "hook $HOOK_KEY  $action  KeyEvent.$keyName = $keyCode  scan $scanCode  device $deviceId source ${sourceText(source)}  $meaning"
+    return FeedEvent(timeNs, Route.ANDROID, null, traceLine(control, Route.ANDROID, detail), control, state)
+}
+
+private class AxisSpec(val axis: Int, val name: String, val control: String, val read: (AxisReading) -> Float)
+
+private val AXIS_SPECS = listOf(
+    AxisSpec(MotionEvent.AXIS_X, "AXIS_X", "in.stick.left.x") { it.x },
+    AxisSpec(MotionEvent.AXIS_Y, "AXIS_Y", "in.stick.left.y") { it.y },
+    AxisSpec(MotionEvent.AXIS_Z, "AXIS_Z", "in.stick.right.x") { it.z },
+    AxisSpec(MotionEvent.AXIS_RZ, "AXIS_RZ", "in.stick.right.y") { it.rz },
+    AxisSpec(MotionEvent.AXIS_LTRIGGER, "AXIS_LTRIGGER", "in.trigger.l2") { it.lTrigger },
+    AxisSpec(MotionEvent.AXIS_RTRIGGER, "AXIS_RTRIGGER", "in.trigger.r2") { it.rTrigger },
+    AxisSpec(MotionEvent.AXIS_HAT_X, "AXIS_HAT_X", "in.dpad") { it.hatX },
+    AxisSpec(MotionEvent.AXIS_HAT_Y, "AXIS_HAT_Y", "in.dpad") { it.hatY },
+)
+
+private fun signed(v: Float): String = String.format(Locale.ROOT, "%+.3f", v)
+
+/** One row per joystick axis that moved between two readings. */
+fun axisTraceEvents(prev: AxisReading, cur: AxisReading, hook: String, deviceId: Int, source: Int, timeNs: Long, state: PadState): List<FeedEvent> {
+    val out = ArrayList<FeedEvent>(AXIS_SPECS.size)
+    for (spec in AXIS_SPECS) {
+        val before = spec.read(prev)
+        val now = spec.read(cur)
+        if (kotlin.math.abs(now - before) <= AXIS_MARGIN_UNITS) continue
+        val detail = "hook $hook  MotionEvent.${spec.name} = ${spec.axis}  raw ${signed(before)} -> ${signed(now)}  " +
+            "device $deviceId source ${sourceText(source)}"
+        out.add(FeedEvent(timeNs, Route.ANDROID, null, traceLine(spec.control, Route.ANDROID, detail), spec.control, state))
+    }
+    check(out.size <= AXIS_SPECS.size) { "more rows than axes" }
+    return out
+}
+
+/** The touchpad's mouse pointer and its click (MotionEvent.BUTTON_PRIMARY = 1): Android's only view of it. */
+fun pointerTraceEvents(
+    timeNs: Long, deviceId: Int, source: Int, hook: String, xFraction: Float, yFraction: Float, wasDown: Boolean, isDown: Boolean, state: PadState,
+): List<FeedEvent> {
+    val moveControl = "in.touch.0.pointer"
+    val move = "hook $hook  MotionEvent.AXIS_X/AXIS_Y as window fractions x ${signed(xFraction)} y ${signed(yFraction)}  " +
+        "device $deviceId source ${sourceText(source)}"
+    val out = arrayListOf(FeedEvent(timeNs, Route.ANDROID, null, traceLine(moveControl, Route.ANDROID, move), moveControl, state))
+    if (wasDown != isDown) {
+        val control = "in.button.touchpad_click"
+        val click = "hook $hook  MotionEvent.BUTTON_PRIMARY = ${MotionEvent.BUTTON_PRIMARY}  ${if (wasDown) 1 else 0} -> ${if (isDown) 1 else 0}  " +
+            "device $deviceId source ${sourceText(source)}"
+        out.add(FeedEvent(timeNs, Route.ANDROID, null, traceLine(control, Route.ANDROID, click), control, state))
+    }
+    return out
+}
+
+/** A sensor sample: the sensor type's constant, its three values in SI units. */
+fun sensorTraceEvent(timeNs: Long, sensorType: Int, x: Float, y: Float, z: Float, state: PadState): FeedEvent? {
+    val (name, control) = when (sensorType) {
+        Sensor.TYPE_GYROSCOPE -> "TYPE_GYROSCOPE" to "in.gyro"
+        Sensor.TYPE_ACCELEROMETER -> "TYPE_ACCELEROMETER" to "in.accel"
+        else -> return null
+    }
+    val detail = "hook $HOOK_SENSOR  Sensor.$name = $sensorType  values x ${signed(x)} y ${signed(y)} z ${signed(z)}  (SI units, axis meaning unproven)"
+    return FeedEvent(timeNs, Route.ANDROID, null, traceLine(control, Route.ANDROID, detail), control, state)
+}
+
+private const val WAVEFORM_ENTRIES_SHOWN = 6
+
+private fun ellipsis(size: Int, shown: Int): String = if (size > shown) "...(${size} entries)" else ""
+
+/** One vibrator's waveform, summarised: the first entries and the length. */
+private fun waveformArgs(lane: Waveform): String {
+    val shown = minOf(lane.timingsMs.size, WAVEFORM_ENTRIES_SHOWN)
+    return "timings ${lane.timingsMs.take(shown)}${ellipsis(lane.timingsMs.size, shown)} ms, " +
+        "amplitudes ${lane.amplitudes.take(shown)}${ellipsis(lane.amplitudes.size, shown)}, repeat -1"
+}
+
+fun oneShotCall(plan: List<Pair<Int, Int>>, durationMs: Int): String =
+    "VibratorManager.vibrate(CombinedVibration.startParallel()" +
+        plan.joinToString("") { ".addVibrator(id ${it.first}, VibrationEffect.createOneShot($durationMs ms, amplitude ${it.second}))" } + ".combine())"
+
+fun waveformCall(lanes: List<Waveform>): String =
+    "VibratorManager.cancel(); VibratorManager.vibrate(CombinedVibration.startParallel()" +
+        lanes.joinToString("") { ".addVibrator(id ${it.vibratorId}, VibrationEffect.createWaveform(${waveformArgs(it)}))" } + ".combine())"
+
+/** One light in a lights request: its name, id and the colour as ARGB. */
+data class LightEntry(val name: String, val id: Int, val argb: Int)
+
+fun lightsCall(entries: List<LightEntry>): String =
+    "LightsManager.LightsSession.requestLights(LightsRequest.Builder()" +
+        entries.joinToString("") { ".addLight(Light \"${it.name}\" id ${it.id}, LightState.Builder().setColor(0x%08x).build())".format(it.argb) } + ".build())"
+
+private fun answerText(answer: ApiAnswer): String = when (answer) {
+    ApiAnswer.Ok -> "Android returned normally (the calls are void: whether the pad changed is the did-it-change answer)"
+    is ApiAnswer.Failed -> "Android answered: ${answer.reason}"
+}
+
+/** One output request on Android mode: every call made with its arguments, then what Android returned or threw. */
+fun androidOutputEvent(timeNs: Long, req: OutputRequest, calls: List<String>, answer: ApiAnswer, state: PadState?): FeedEvent {
+    val control = requestControl(req)
+    val made = if (calls.isEmpty()) "no Android call made" else calls.joinToString("; ")
+    val detail = "request ${requestText(req)}  call $made  -> ${answerText(answer)}"
+    return FeedEvent(timeNs, Route.ANDROID, null, traceLine(control, Route.ANDROID, detail), control, state)
+}
+
+fun askControl(kind: AskKind): String = when (kind) {
+    AskKind.LIGHTBAR -> "out.lightbar"
+    AskKind.PLAYER_LEDS -> "out.led.player"
+    AskKind.MUTE_LED -> "out.led.mute"
+    AskKind.RUMBLE -> "out.rumble"
+}
+
+/** The developer's "did it change?" answer, next to what Android said. */
+fun changedAnswerEvent(timeNs: Long, kind: AskKind, sent: String, answer: ApiAnswer, changed: Boolean): FeedEvent {
+    val control = askControl(kind)
+    val detail = "answer to did-it-change for $sent  Android said ${answerText(answer)}  developer said ${if (changed) "yes" else "no"}"
+    return FeedEvent(timeNs, Route.ANDROID, null, traceLine(control, Route.ANDROID, detail), control, null)
+}

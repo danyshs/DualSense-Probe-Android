@@ -51,8 +51,9 @@ private fun Section(titleRes: Int, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun LockNote(reasonRes: Int) {
-    Text(stringResource(R.string.locked_reason, stringResource(reasonRes)), color = DsColors.TextDim)
+private fun LockNote(reduction: Reduction) {
+    val reason = stringResource(reduction.reasonRes, *reduction.reasonArgs.toTypedArray())
+    Text(stringResource(R.string.locked_reason, reason), color = DsColors.TextDim)
 }
 
 @Composable
@@ -134,7 +135,7 @@ fun OutputsScreen(
         while (true) withFrameMillis { outputs.tick() }
     }
     val canSend = canSendOutputs(state)
-    val reasons = locked.associate { it.feature to it.reasonRes }
+    val reasons = locked.associate { it.feature to it }
     fun usable(f: Feature) = canSend && f !in reasons
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         HeaderStrip(state, ui.frame.state.battery, ui.frame.state.headphonesIn, locked, answers, actions.onRefreshAnswers, actions.onSwitch, actions.onBack, actions.onCrashNow)

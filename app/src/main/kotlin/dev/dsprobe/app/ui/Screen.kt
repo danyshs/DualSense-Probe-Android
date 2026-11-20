@@ -8,8 +8,7 @@ import dev.dsprobe.app.route.Route
 import dev.dsprobe.app.route.RouteState
 import dev.dsprobe.app.route.reductions
 
-/** The Debug screen joins with its own build step. */
-enum class Screen { LIVE, OUTPUTS, TOO_MANY }
+enum class Screen { LIVE, OUTPUTS, DEBUG, TOO_MANY }
 
 /** One frame of everything the live screen draws: what the pad did and the time-based effects on it. */
 data class LiveUi(val frame: Frame, val feel: FeelFrame) {
@@ -18,9 +17,10 @@ data class LiveUi(val frame: Frame, val feel: FeelFrame) {
     }
 }
 
-/** Too many pads wins over everything; otherwise the Outputs screen is shown while the user asked for it. */
-fun screenFor(state: RouteState, wantsOutputs: Boolean): Screen = when {
+/** Too many pads wins over everything; then Debug Mode, then Outputs, while the user asked for them. */
+fun screenFor(state: RouteState, wantsOutputs: Boolean, wantsDebug: Boolean = false): Screen = when {
     state is RouteState.TooMany -> Screen.TOO_MANY
+    wantsDebug -> Screen.DEBUG
     wantsOutputs -> Screen.OUTPUTS
     else -> Screen.LIVE
 }
@@ -48,6 +48,8 @@ class ScreenActions(
     val onCrashNow: (() -> Unit)?,
     val onOpenOutputs: () -> Unit,
     val onCloseOutputs: () -> Unit,
+    val onOpenDebug: () -> Unit,
+    val onCloseDebug: () -> Unit,
 )
 
 /** What Android offers nothing for, live. Only Android mode asks Android; Direct USB locks nothing. */

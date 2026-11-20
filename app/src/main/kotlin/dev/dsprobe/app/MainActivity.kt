@@ -6,6 +6,8 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import dev.dsprobe.app.route.HOOK_MOTION
+import dev.dsprobe.app.route.HOOK_TOUCH
 import dev.dsprobe.app.route.PadSession
 import dev.dsprobe.app.ui.AppRoot
 
@@ -33,13 +35,13 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean = session.androidRoute.onKey(event) || super.dispatchKeyEvent(event)
 
-    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean = fromPad(event) || super.dispatchGenericMotionEvent(event)
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean = fromPad(event, HOOK_MOTION) || super.dispatchGenericMotionEvent(event)
 
     // a touchpad click arrives as a mouse button press, which is a touch event
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean = fromPad(event) || super.dispatchTouchEvent(event)
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean = fromPad(event, HOOK_TOUCH) || super.dispatchTouchEvent(event)
 
-    private fun fromPad(event: MotionEvent): Boolean {
+    private fun fromPad(event: MotionEvent, hook: String): Boolean {
         val decor = window.decorView
-        return session.androidRoute.onMotion(event, decor.width, decor.height)
+        return session.androidRoute.onMotion(event, decor.width, decor.height, hook)
     }
 }

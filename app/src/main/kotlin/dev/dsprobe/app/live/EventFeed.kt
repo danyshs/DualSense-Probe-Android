@@ -3,10 +3,22 @@ package dev.dsprobe.app.live
 import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.route.Route
 
-/** One raw report (Direct USB) or one described event (Android mode). */
-data class FeedEvent(val timeNs: Long, val route: Route, val raw: ByteArray?, val android: String?) {
+/**
+ * One input report or output send (Direct USB), or one described Android event or call.
+ * [raw] is the report bytes; [described] is a finished trace line for [control] (an "in." or "out." ID, null in bare test events);
+ * [state] is the pad as it stands after the event, when the route has one.
+ * A bare raw report is an input the trace decodes itself; an output send carries both.
+ */
+data class FeedEvent(
+    val timeNs: Long,
+    val route: Route,
+    val raw: ByteArray?,
+    val described: String?,
+    val control: String? = null,
+    val state: PadState? = null,
+) {
     init {
-        require((raw == null) != (android == null)) { "a feed event is raw or described, not both or neither" }
+        require(raw != null || described != null) { "a feed event carries bytes or a description" }
     }
 }
 

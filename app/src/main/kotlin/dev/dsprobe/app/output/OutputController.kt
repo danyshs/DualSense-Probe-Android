@@ -73,6 +73,7 @@ class OutputController(
     private val live: () -> LiveRoute?,
     private val nowMs: () -> Long,
     private val log: (String) -> Unit,
+    private val onAnswered: (PendingAsk, Boolean) -> Unit = { _, _ -> },
 ) {
     private val mutable = MutableStateFlow(OutputsShown.IDLE)
     val shown: StateFlow<OutputsShown> = mutable.asStateFlow()
@@ -258,6 +259,7 @@ class OutputController(
     fun answerChanged(changed: Boolean) {
         val ask = mutable.value.ask ?: return
         log("${ask.sent}: Android answered ${describe(ask.answer)}; did it change? ${if (changed) "yes" else "no"}")
+        onAnswered(ask, changed)
         mutable.value = mutable.value.copy(ask = null)
     }
 

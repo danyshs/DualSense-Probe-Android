@@ -19,10 +19,21 @@ fun interface ReportSink {
     fun send(report: ByteArray): Boolean
 }
 
+/** Told after every send, on the writer thread: the report, what it carried, and whether the pad took it. Must not throw. */
+fun interface SendObserver {
+    fun sent(report: ByteArray, fields: Set<OutputField>, ok: Boolean, isFinal: Boolean, isResend: Boolean)
+}
+
 private sealed interface Plan {
     data object Done : Plan
     data class Wait(val ms: Long) : Plan
-    class Send(val report: ByteArray, val fields: Set<OutputField>, val isFinal: Boolean, val rumble: MotorLevels?) : Plan
+    class Send(
+        val report: ByteArray,
+        val fields: Set<OutputField>,
+        val isFinal: Boolean,
+        val rumble: MotorLevels?,
+        val isResend: Boolean = false,
+    ) : Plan
 }
 
 /**
@@ -37,6 +48,7 @@ class OutputWriter(
     private val nowMs: () -> Long,
     private val onFailing: (String) -> Unit,
     private val log: (String) -> Unit,
+    private val observer: SendObserver = SendObserver { _, _, _, _, _ -> },
 ) {
     private val lock = ReentrantLock()
     private val wake = lock.newCondition()
@@ -266,7 +278,7 @@ class OutputWriter(
         if (touched.isEmpty()) return Plan.Wait(Limits.OUTPUT_RESEND_INTERVAL_MS.toLong())
         if (sinceSendMs < Limits.OUTPUT_RESEND_INTERVAL_MS) return Plan.Wait(Limits.OUTPUT_RESEND_INTERVAL_MS - sinceSendMs)
         lastSendMs = now
-        return Plan.Send(buildUsbOutput(state, touched), EnumSet.copyOf(touched), isFinal = false, rumble = rumbleIn(touched))
+        return Plan.Send(buildUsbOutput(state, touched), EnumSet.copyOf(touched), isFinal = false, rumble = rumbleIn(touched), isResend = true)
     }
 
     private fun rumbleIn(fields: Set<OutputField>): MotorLevels? =
@@ -281,6 +293,8 @@ class OutputWriter(
     private fun deliver(job: Plan.Send) {
         check(job.report.size == Limits.USB_OUTPUT_REPORT_BYTES) { "output report is ${job.report.size} bytes" }
         val ok = sink.send(job.report)
+        // tracing must never get in the way of the pad
+        boundary("send observer", log) { observer.sent(job.report, job.fields, ok, job.isFinal, job.isResend) }
         lock.withLock {
             if (ok) {
                 sentCount += 1

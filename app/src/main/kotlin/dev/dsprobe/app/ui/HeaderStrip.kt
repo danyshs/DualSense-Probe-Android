@@ -106,7 +106,7 @@ private fun ReducedList(reduced: List<Reduction>) {
         for (r in reduced) {
             Column {
                 Text(stringResource(featureNameRes(r.feature)), fontWeight = FontWeight.Bold)
-                Text(stringResource(r.reasonRes), color = DsColors.TextDim)
+                Text(stringResource(r.reasonRes, *r.reasonArgs.toTypedArray()), color = DsColors.TextDim)
             }
         }
     }
