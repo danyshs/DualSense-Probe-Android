@@ -20,6 +20,9 @@ interface UsbLink {
     /** True when the pad took the whole report. */
     fun writeReport(report: ByteArray): Boolean
 
+    /** One HID feature report (GET_REPORT), or null when the pad did not answer. */
+    fun readFeature(reportId: Int, length: Int): ByteArray?
+
     /** Gives back every interface this link claimed and drops its pending request. May throw Android's own errors. */
     fun releaseInterfaces()
 

@@ -5,6 +5,7 @@ object Limits {
     const val USB_INPUT_REPORT_BYTES = 64
     const val USB_OUTPUT_REPORT_BYTES = 63
     const val USB_FEATURE_FIRMWARE_REPORT_BYTES = 64
+    const val USB_FEATURE_FIRMWARE_REPORT_ID = 0x20
 
     // interface 3, the HID one (P2)
     const val USB_HID_INTERFACE_ID = 3
@@ -24,6 +25,7 @@ object Limits {
     const val TRIGGER_FORCE_MAX = 0xc0
     const val TRIGGER_EFFECT_BYTES_MAX = 11
     const val PLAYER_LED_MASK_MAX = 0x1f
+    const val MOTOR_STRENGTH_MAX = 255
     const val AUDIO_AMPLITUDE_MAX = 0.25f // a guess: tune by ear
 
     const val TOUCH_POINTS_MAX = 2

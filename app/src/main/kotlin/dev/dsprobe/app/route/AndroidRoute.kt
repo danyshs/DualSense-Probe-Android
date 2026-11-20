@@ -26,12 +26,16 @@ import dev.dsprobe.app.live.LiveState
 import dev.dsprobe.app.live.PadState
 import dev.dsprobe.app.pad.FoundPad
 import dev.dsprobe.pad.Limits
+import dev.dsprobe.pad.MuteLed
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 private const val TAG = "AndroidRoute"
-private const val LIGHTBAR_NAME = "indicator"
-private const val PLAYER_LED_COUNT = 5
-private const val RUMBLE_LEFT_ID = 0
-private const val RUMBLE_RIGHT_ID = 1
+
+private fun logWarn(message: String) {
+    Log.w(TAG, message)
+}
 private const val LATE_DROP_COUNT_MAX = 1_000_000
 
 /** Next value of the late-event counter: counts up, stops at the limit so it can never wrap. */
@@ -72,6 +76,13 @@ class AndroidRoute(
     private var lightsSession: LightsSession? = null
     private var lightsRequested = false
     private var sensorManager: SensorManager? = null
+    private var touchPointersSeen = 0
+    private val mutableAnswers = MutableStateFlow<AndroidAnswers?>(null)
+
+    /** What Android says it offers for the pad, asked again on every start and by [requery]; null while the route is not live. */
+    val answers: StateFlow<AndroidAnswers?> = mutableAnswers.asStateFlow()
+
+    val isLive: Boolean get() = device != null
 
     /** Callbacks that arrived after stop() and were dropped; for the log. */
     var lateEventsDropped = 0
@@ -104,9 +115,11 @@ class AndroidRoute(
         override fun run() {
             if (droppedAsLate()) return
             val current = device ?: return
-            val battery = current.batteryState
-            state = state.copy(battery = batteryFrom(battery.isPresent, battery.capacity))
-            live.publish(state)
+            val battery = askOrNull("batteryState", ::logWarn) { current.batteryState }
+            if (battery != null) {
+                state = state.copy(battery = batteryFrom(battery.isPresent, battery.capacity, battery.status))
+                live.publish(state)
+            }
             handler.postDelayed(this, AppLimits.BATTERY_POLL_INTERVAL_MS)
         }
     }
@@ -128,10 +141,18 @@ class AndroidRoute(
         state = PadState.EMPTY
         live.reset()
         live.setWriter(Thread.currentThread())
+        touchPointersSeen = 0
         registerSensors(first)
         openLights(first)
-        // battery is greyed on USB, so only poll where it can answer
-        if (reductions(Route.ANDROID, found.transport).none { it.feature == Feature.BATTERY }) batteryPoll.run()
+        mutableAnswers.value = readAnswers(context, first, touchPointersSeen, ::logWarn)
+        batteryPoll.run() // Android's answer is shown even where it reads as unknown
+    }
+
+    /** Asks Android again, for the "What Android reports" sheet. */
+    fun requery() {
+        check(Thread.currentThread() === mainThread()) { "AndroidRoute asks on the main thread" }
+        val current = pad?.inputDeviceIds?.first()?.let { InputDevice.getDevice(it) } ?: return
+        mutableAnswers.value = readAnswers(context, current, touchPointersSeen, ::logWarn)
     }
 
     private fun registerSensors(from: InputDevice) {
@@ -166,6 +187,7 @@ class AndroidRoute(
         closeIfRequested(lightsRequested) { lightsSession?.close() }?.let { Log.w(TAG, "lights session close failed", it) }
         lightsSession = null
         lightsRequested = false
+        mutableAnswers.value = null
         device = null
         pad = null
         state = PadState.EMPTY
@@ -201,12 +223,20 @@ class AndroidRoute(
             live.publish(state)
         } else if (event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_TOUCHPAD)) {
             if (event.action != MotionEvent.ACTION_SCROLL && windowWidthPx > 0 && windowHeightPx > 0) {
+                noteFingers(event.pointerCount)
                 val primary = event.buttonState and MotionEvent.BUTTON_PRIMARY != 0
                 state = state.withPointer(event.x / windowWidthPx, event.y / windowHeightPx, primary)
                 live.publish(state)
             }
         }
         return true
+    }
+
+    // a second finger on the touchpad is the one thing Android has no query for: it is seen or it is not
+    private fun noteFingers(count: Int) {
+        if (count <= touchPointersSeen) return
+        touchPointersSeen = count
+        mutableAnswers.value = mutableAnswers.value?.copy(touchPointersSeen = count)
     }
 
     private fun readAxes(e: MotionEvent) = AxisReading(
@@ -223,7 +253,7 @@ class AndroidRoute(
                 is OutputRequest.Rumble -> sendRumble(current, req)
                 is OutputRequest.Lightbar -> sendLightbar(current, req)
                 is OutputRequest.PlayerLeds -> sendPlayerLeds(current, req)
-                is OutputRequest.SetMuteLed -> ApiAnswer.Failed("Android has no API for the mute LED")
+                is OutputRequest.SetMuteLed -> sendMuteLed(current, req)
                 is OutputRequest.Trigger -> ApiAnswer.Failed("Android has no API for adaptive triggers")
                 is OutputRequest.AudioTone -> ApiAnswer.Failed("Android lists no audio output for the pad")
             }
@@ -236,14 +266,14 @@ class AndroidRoute(
     private fun sendRumble(from: InputDevice, req: OutputRequest.Rumble): ApiAnswer {
         require(req.durationMs in 1..Limits.RUMBLE_DURATION_MS_MAX) { "rumble duration ${req.durationMs}" }
         val manager: VibratorManager = from.vibratorManager
-        val effect = CombinedVibration.startParallel()
-        var motors = 0
-        for ((id, strength) in listOf(RUMBLE_LEFT_ID to req.left, RUMBLE_RIGHT_ID to req.right)) {
-            if (strength.toInt() == 0) continue
-            effect.addVibrator(id, VibrationEffect.createOneShot(req.durationMs.toLong(), strength.toInt()))
-            motors += 1
+        val plan = rumblePlan(manager.vibratorIds.toList(), req.left.toInt(), req.right.toInt())
+        if (plan.isEmpty()) {
+            manager.cancel()
+            return ApiAnswer.Ok
         }
-        if (motors == 0) manager.cancel() else manager.vibrate(effect.combine())
+        val effect = CombinedVibration.startParallel()
+        for ((id, strength) in plan) effect.addVibrator(id, VibrationEffect.createOneShot(req.durationMs.toLong(), strength))
+        manager.vibrate(effect.combine())
         return ApiAnswer.Ok
     }
 
@@ -259,14 +289,22 @@ class AndroidRoute(
         require(req.mask in 0..Limits.PLAYER_LED_MASK_MAX) { "player LED mask ${req.mask}" }
         val lights = from.lightsManager.lights
         val builder = LightsRequest.Builder()
-        for (n in 1..PLAYER_LED_COUNT) {
-            val light = lights.firstOrNull { it.name.endsWith("player-$n") }
-                ?: return ApiAnswer.Failed("no light named player-$n")
+        for (n in 1..AppLimits.PLAYER_LED_COUNT) {
+            val light = lights.firstOrNull { it.name.endsWith(PLAYER_LIGHT_NAME_PART + n) }
+                ?: return ApiAnswer.Failed("no light named ${PLAYER_LIGHT_NAME_PART}$n")
             // brightness-only lights: white is on, black is off
             val on = req.mask and (1 shl (n - 1)) != 0
             builder.addLight(light, LightState.Builder().setColor(if (on) Color.WHITE else Color.BLACK).build())
         }
         return submit(builder.build())
+    }
+
+    // only reachable once Android lists a light that names the mute LED; it has no pulse mode
+    private fun sendMuteLed(from: InputDevice, req: OutputRequest.SetMuteLed): ApiAnswer {
+        val light = from.lightsManager.lights.firstOrNull { it.name.contains(MUTE_LIGHT_NAME_PART, ignoreCase = true) }
+            ?: return ApiAnswer.Failed("Android lists no light for the mute LED")
+        if (req.mode == MuteLed.PULSE) return ApiAnswer.Failed("Android lights have no pulse mode")
+        return request(light, if (req.mode == MuteLed.ON) Color.WHITE else Color.BLACK)
     }
 
     private fun request(light: Light, color: Int): ApiAnswer =

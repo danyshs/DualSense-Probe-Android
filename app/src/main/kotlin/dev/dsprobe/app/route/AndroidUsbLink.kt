@@ -14,6 +14,11 @@ import java.util.concurrent.TimeoutException
 
 private const val OPEN_FAILED_NO_ERRNO = -1 // the Java API gives no errno
 
+// HID GET_REPORT for a feature report: class request, device to host, to the interface
+private const val HID_GET_REPORT_REQUEST_TYPE = 0xA1
+private const val HID_GET_REPORT_REQUEST = 0x01
+private const val HID_FEATURE_REPORT_VALUE = 0x0300
+
 /** A claim of interface 3: one queued [UsbRequest] reads input, [UsbDeviceConnection.bulkTransfer] writes output (P7). */
 class AndroidUsbLink(
     private val connection: UsbDeviceConnection,
@@ -50,6 +55,15 @@ class AndroidUsbLink(
     override fun writeReport(report: ByteArray): Boolean {
         check(report.size == Limits.USB_OUTPUT_REPORT_BYTES) { "output report is ${report.size} bytes" }
         return connection.bulkTransfer(outEndpoint, report, report.size, AppLimits.OUTPUT_WRITE_TIMEOUT_MS) == report.size
+    }
+
+    override fun readFeature(reportId: Int, length: Int): ByteArray? {
+        val buffer = ByteArray(length)
+        val got = connection.controlTransfer(
+            HID_GET_REPORT_REQUEST_TYPE, HID_GET_REPORT_REQUEST, HID_FEATURE_REPORT_VALUE or reportId,
+            Limits.USB_HID_INTERFACE_ID, buffer, length, AppLimits.FEATURE_READ_TIMEOUT_MS,
+        )
+        return if (got > 0) buffer.copyOf(got) else null
     }
 
     override fun releaseInterfaces() {

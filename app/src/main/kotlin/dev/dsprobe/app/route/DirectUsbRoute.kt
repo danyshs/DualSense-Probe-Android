@@ -4,8 +4,13 @@ import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.live.EventFeed
 import dev.dsprobe.app.live.FeedEvent
 import dev.dsprobe.app.live.LiveState
+import dev.dsprobe.pad.Limits
+import dev.dsprobe.pad.OutputField
 import dev.dsprobe.pad.ParseResult
+import dev.dsprobe.pad.RumbleMode
+import dev.dsprobe.pad.parseFirmwareInfo
 import dev.dsprobe.pad.parseUsbInput
+import dev.dsprobe.pad.supportsRumbleV2
 import java.util.concurrent.atomic.AtomicBoolean
 
 private const val NANOS_PER_MS = 1_000_000L
@@ -58,9 +63,25 @@ class DirectUsbRoute(
         check(readerThread == null && writerThread == null) { "route already started" }
         check(current == null) { "another Direct USB route is open" }
         live.reset()
+        pickRumbleMode()
         current = this
         readerThread = Thread(::readLoop, READER_NAME).also { it.start() }
         writerThread = Thread(writer::run, WRITER_NAME).also { it.start() }
+    }
+
+    /** Reads the firmware once, before the threads start, and picks the rumble flags it understands. */
+    private fun pickRumbleMode() {
+        val reply = askOrNull("firmware read", log) {
+            link.readFeature(Limits.USB_FEATURE_FIRMWARE_REPORT_ID, Limits.USB_FEATURE_FIRMWARE_REPORT_BYTES) ?: ByteArray(0)
+        }
+        val info = reply?.let(::parseFirmwareInfo)
+        if (info == null) {
+            log("firmware report unreadable: rumble stays in compatible mode")
+            return
+        }
+        val mode = if (info.supportsRumbleV2()) RumbleMode.V2 else RumbleMode.COMPATIBLE
+        writer.setRumbleMode(mode)
+        log("firmware update version 0x%04x, rumble %s".format(info.updateVersion.toInt(), mode))
     }
 
     private fun fault(detail: String) {
@@ -150,7 +171,21 @@ class DirectUsbRoute(
     /** Debug button: throws on the writer thread. */
     fun crashWriterNow() = writer.crashNow()
 
-    override fun send(req: OutputRequest): ApiAnswer = ApiAnswer.Failed("outputs are not wired to Direct USB yet")
+    /** Every control becomes one change of the writer's state; the writer builds the bytes. */
+    override fun send(req: OutputRequest): ApiAnswer {
+        val taken = when (req) {
+            is OutputRequest.Rumble -> writer.setRumble(req.left, req.right, req.durationMs)
+            is OutputRequest.Lightbar -> writer.change(OutputField.LIGHTBAR) { it.copy(lightbar = req.rgb) }
+            is OutputRequest.PlayerLeds -> {
+                require(req.mask in 0..Limits.PLAYER_LED_MASK_MAX) { "player LED mask ${req.mask}" }
+                writer.change(OutputField.PLAYER_LEDS) { it.copy(playerLedMask = req.mask) }
+            }
+            is OutputRequest.SetMuteLed -> writer.change(OutputField.MUTE_LED) { it.copy(muteLed = req.mode) }
+            is OutputRequest.Trigger -> return ApiAnswer.Failed("adaptive triggers are not built yet")
+            is OutputRequest.AudioTone -> return ApiAnswer.Failed("audio is not built yet")
+        }
+        return if (taken) ApiAnswer.Ok else ApiAnswer.Failed("the pad is being handed back")
+    }
 
     override fun stop() = release()
 }

@@ -9,7 +9,12 @@ object AppLimits {
     const val FEED_EVENTS_MAX = 4_096
     const val BATTERY_POLL_INTERVAL_MS = 5_000L
 
+    const val ANSWERS_POLL_INTERVAL_MS = 1_000L
+    const val PLAYER_LED_COUNT = 5
+    const val COLOUR_SEND_INTERVAL_MS_MIN = 33L // a guess: about 30 colour updates a second; tune on the phone
+
     const val READ_TIMEOUT_MS = 100
+    const val FEATURE_READ_TIMEOUT_MS = 100 // a guess: same as the read wait
     const val OUTPUT_WRITE_TIMEOUT_MS = 100 // a guess: same as the read wait
     const val RELEASE_JOIN_TIMEOUT_MS = 500L
     const val CRASH_RECORD_BYTES_MAX = 64_000

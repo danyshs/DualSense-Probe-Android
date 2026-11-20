@@ -18,6 +18,8 @@ sealed interface Battery {
     data class Percent(val percent: Int) : Battery
     /** Level and charging nibbles as the pad sends them; their meaning is untested (P18). */
     data class RawNibble(val levelNibble: Int, val chargingNibble: Int) : Battery
+    /** Android's own answer, shown as given when it isn't a usable percentage (measured on USB: capacity -0.01, status unknown). */
+    data class AndroidRaw(val capacity: Float, val status: Int) : Battery
 }
 
 /**

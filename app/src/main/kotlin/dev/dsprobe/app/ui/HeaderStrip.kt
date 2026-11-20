@@ -27,6 +27,7 @@ import dev.dsprobe.app.live.Battery
 import dev.dsprobe.app.pad.FoundPad
 import dev.dsprobe.app.pad.PRODUCT_DUALSENSE_EDGE
 import dev.dsprobe.app.pad.Transport
+import dev.dsprobe.app.route.AndroidAnswers
 import dev.dsprobe.app.route.Feature
 import dev.dsprobe.app.route.NoticeKind
 import dev.dsprobe.app.route.Reduction
@@ -82,12 +83,13 @@ private fun padName(pad: FoundPad?): String = when {
     else -> stringResource(R.string.pad_dualsense)
 }
 
-private const val BATTERY_WIDTH_DP = 128 // fits "Battery raw 15" in 14 sp monospace
+private const val BATTERY_WIDTH_DP = 136 // fits "Battery +0.85/3" in 14 sp monospace
 
 @Composable
 private fun batteryText(battery: Battery?): String = when (battery) {
     is Battery.Percent -> stringResource(R.string.battery_percent, battery.percent)
     is Battery.RawNibble -> stringResource(R.string.battery_raw, battery.levelNibble, battery.chargingNibble)
+    is Battery.AndroidRaw -> stringResource(R.string.battery_android_raw, signed(battery.capacity), battery.status)
     null -> stringResource(R.string.battery_unknown)
 }
 
@@ -116,13 +118,15 @@ fun HeaderStrip(
     state: RouteState,
     battery: Battery?,
     headphonesIn: Boolean?,
+    locked: List<Reduction>,
+    answers: AndroidAnswers?,
+    onRefreshAnswers: () -> Unit,
     onSwitch: () -> Unit,
     onBack: () -> Unit,
     onCrashNow: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val pad = padOf(state)
-    val reduced = reducedOf(state)
     var showReduced by remember { mutableStateOf(false) }
     Column(modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -131,7 +135,7 @@ fun HeaderStrip(
             if (pad != null) Text(stringResource(R.string.battery_label, batteryText(battery)), Modifier.padding(start = 8.dp).width(BATTERY_WIDTH_DP.dp), style = NumberStyle, textAlign = TextAlign.End, maxLines = 1, softWrap = false)
         }
         Text(padLine(pad), Modifier.fillMaxWidth(), color = DsColors.TextDim)
-        if (state is RouteState.AndroidMode) AndroidBanner(state, reduced, showReduced, onSwitch) { showReduced = !showReduced }
+        if (state is RouteState.AndroidMode) AndroidBanner(state, locked, showReduced, answers, onRefreshAnswers, onSwitch) { showReduced = !showReduced }
         if (state is RouteState.DirectUsb) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onBack) { Text(stringResource(R.string.back_to_android)) }
@@ -157,6 +161,8 @@ private fun AndroidBanner(
     state: RouteState.AndroidMode,
     reduced: List<Reduction>,
     expanded: Boolean,
+    answers: AndroidAnswers?,
+    onRefreshAnswers: () -> Unit,
     onSwitch: () -> Unit,
     onToggle: () -> Unit,
 ) {
@@ -173,6 +179,7 @@ private fun AndroidBanner(
             )
             if (expanded) ReducedList(reduced)
         }
+        AnswersSheet(answers, onRefreshAnswers)
         if (state.pad.transport == Transport.USB) {
             Button(onClick = onSwitch) { Text(stringResource(R.string.switch_to_direct_usb)) }
         }

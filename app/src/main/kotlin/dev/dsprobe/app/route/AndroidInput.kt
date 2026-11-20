@@ -8,6 +8,7 @@ import dev.dsprobe.app.live.PadState
 import dev.dsprobe.app.live.TouchPoint
 import dev.dsprobe.pad.Button
 import dev.dsprobe.pad.Dpad
+import dev.dsprobe.pad.Limits
 
 // pure conversions from Android's event values to PadState; nothing here touches an Android object
 
@@ -75,8 +76,23 @@ fun PadState.withGyro(x: Float, y: Float, z: Float): PadState = copy(gyro = Moti
 
 fun PadState.withAccel(x: Float, y: Float, z: Float): PadState = copy(accel = Motion(x, y, z, MotionUnit.SI))
 
-/** Capacity 0..1 or NaN (P78); a missing or unknown battery reads as null, not as 0 percent. */
-fun batteryFrom(isPresent: Boolean, capacity: Float): Battery? {
-    if (!isPresent || capacity.isNaN() || capacity < 0f) return null
+/** Capacity 0..1 or NaN; anything else is shown as Android's raw answer, never as 0 percent and never hidden. */
+fun batteryFrom(isPresent: Boolean, capacity: Float, status: Int): Battery {
+    if (!isPresent || capacity.isNaN() || capacity < 0f) return Battery.AndroidRaw(capacity, status)
     return Battery.Percent((capacity.coerceAtMost(1f) * 100f).toInt())
+}
+
+/**
+ * Which vibrator gets which strength, from the ids Android reports: the lower id is left, the next
+ * is right. One id gets the stronger of the two; a motor at 0 is left out. Ids past two are unused.
+ */
+fun rumblePlan(ids: List<Int>, left: Int, right: Int): List<Pair<Int, Int>> {
+    require(left in 0..Limits.MOTOR_STRENGTH_MAX && right in 0..Limits.MOTOR_STRENGTH_MAX) { "strength $left, $right" }
+    val sorted = ids.sorted()
+    val plan = when (sorted.size) {
+        0 -> emptyList()
+        1 -> listOf(sorted[0] to maxOf(left, right))
+        else -> listOf(sorted[0] to left, sorted[1] to right)
+    }
+    return plan.filter { it.second > 0 }
 }

@@ -5,9 +5,12 @@ import android.content.pm.ApplicationInfo
 import android.hardware.usb.UsbManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import dev.dsprobe.app.live.EventFeed
 import dev.dsprobe.app.live.LiveState
+import dev.dsprobe.app.output.LiveRoute
+import dev.dsprobe.app.output.OutputController
 import dev.dsprobe.app.pad.FoundPad
 import dev.dsprobe.app.pad.PadFinder
 
@@ -26,6 +29,7 @@ class PadSession(context: Context) : RouteHost {
     val feed = EventFeed()
     val androidRoute = AndroidRoute(context, live, feed)
     val controller = RouteController(this, ::logWarn)
+    val outputs = OutputController(::liveRoute, SystemClock::uptimeMillis, ::logWarn)
 
     /** The debug "Crash now" button exists only in a debuggable build. */
     val crashNowAvailable: Boolean = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
@@ -58,9 +62,19 @@ class PadSession(context: Context) : RouteHost {
         direct?.crashWriterNow()
     }
 
-    override fun startAndroidRoute(pad: FoundPad) = androidRoute.start(pad)
+    // the route outputs go to: the claim while Direct USB is open, else Android mode while it is live
+    private fun liveRoute(): LiveRoute? = direct?.let { LiveRoute(it, Route.DIRECT_USB) }
+        ?: if (androidRoute.isLive) LiveRoute(androidRoute, Route.ANDROID) else null
 
-    override fun stopAndroidRoute() = androidRoute.stop()
+    override fun startAndroidRoute(pad: FoundPad) {
+        outputs.reset()
+        androidRoute.start(pad)
+    }
+
+    override fun stopAndroidRoute() {
+        androidRoute.stop()
+        outputs.reset()
+    }
 
     override fun requestUsbPermission(pad: FoundPad) {
         val device = pad.usbDevice
@@ -84,6 +98,7 @@ class PadSession(context: Context) : RouteHost {
             val route = DirectUsbRoute(link, live, feed, ::onRouteFault, ::logWarn)
             direct = route
             route.start()
+            outputs.reset()
         }
         controller.post(RouteEvent.ClaimResult(outcome.result))
     }
@@ -97,6 +112,7 @@ class PadSession(context: Context) : RouteHost {
         val route = direct
         direct = null
         if (route != null) boundary("release Direct USB", ::logWarn) { route.release() }
+        outputs.reset()
         controller.post(RouteEvent.ReleaseFinished)
     }
 

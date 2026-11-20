@@ -12,4 +12,4 @@ val btPad = FoundPad(null, listOf(8), PRODUCT_DUALSENSE, Transport.BLUETOOTH)
 val usbHit = SeenUsb(null, VENDOR_SONY, PRODUCT_DUALSENSE)
 
 fun androidMode(pad: FoundPad = usbPad, notice: Notice? = null) =
-    RouteState.AndroidMode(pad, reductions(Route.ANDROID, pad.transport), notice)
+    RouteState.AndroidMode(pad, notice)

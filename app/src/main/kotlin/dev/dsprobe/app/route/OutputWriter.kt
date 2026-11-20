@@ -5,6 +5,7 @@ import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.OutputField
 import dev.dsprobe.pad.OutputState
 import dev.dsprobe.pad.RELEASE_FIELDS
+import dev.dsprobe.pad.RumbleMode
 import dev.dsprobe.pad.allOff
 import dev.dsprobe.pad.buildUsbOutput
 import java.util.EnumSet
@@ -43,6 +44,7 @@ class OutputWriter(
     private val dirty: MutableSet<OutputField> = EnumSet.noneOf(OutputField::class.java)
     private val touched: MutableSet<OutputField> = EnumSet.noneOf(OutputField::class.java)
     private var lastSendMs: Long? = null
+    private var rumbleDeadlineMs: Long? = null
     private var closing = false
     private var finalPlanned = false
     private var failuresInARow = 0
@@ -79,6 +81,30 @@ class OutputWriter(
         true
     }
 
+    /** Picks the rumble flags the firmware understands. Not a change to send: nothing goes out until rumble is asked for. */
+    fun setRumbleMode(mode: RumbleMode) = lock.withLock {
+        state = state.copy(rumbleMode = mode)
+    }
+
+    /**
+     * Rumble that stops by itself: the writer zeroes it at the deadline, so a stalled UI can't keep the
+     * pad rumbling. Both motors at 0 means stop now. False (and counted) once the release has begun.
+     */
+    fun setRumble(left: UByte, right: UByte, durationMs: Int): Boolean = lock.withLock {
+        require(durationMs in 1..Limits.RUMBLE_DURATION_MS_MAX) { "rumble duration $durationMs ms" }
+        if (closing) {
+            droppedAfterCloseCount += 1
+            return@withLock false
+        }
+        state = state.copy(rumbleLeft = left, rumbleRight = right)
+        val stopped = left.toInt() == 0 && right.toInt() == 0
+        rumbleDeadlineMs = if (stopped) null else nowMs() + durationMs
+        dirty.add(OutputField.RUMBLE)
+        touched.add(OutputField.RUMBLE)
+        poke()
+        true
+    }
+
     /** Begins the release: the all-off report goes out last, then the writer is done. Safe to call twice. */
     fun finish() = lock.withLock {
         closing = true
@@ -108,6 +134,23 @@ class OutputWriter(
     /** What to do at [now], decided under the lock; sending happens outside it. */
     private fun plan(now: Long): Plan {
         if (halted) return Plan.Done
+        expireRumble(now)
+        val next = planSends(now)
+        val deadline = rumbleDeadlineMs
+        // never sleep past the moment the rumble has to stop
+        if (next is Plan.Wait && deadline != null) return Plan.Wait(minOf(next.ms, (deadline - now).coerceAtLeast(1L)))
+        return next
+    }
+
+    private fun expireRumble(now: Long) {
+        val deadline = rumbleDeadlineMs ?: return
+        if (now < deadline) return
+        state = state.copy(rumbleLeft = 0u, rumbleRight = 0u)
+        rumbleDeadlineMs = null
+        dirty.add(OutputField.RUMBLE)
+    }
+
+    private fun planSends(now: Long): Plan {
         val sinceSendMs = lastSendMs?.let { now - it } ?: Long.MAX_VALUE
         val finalDue = closing && !finalPlanned
         if (dirty.isNotEmpty() || finalDue) {

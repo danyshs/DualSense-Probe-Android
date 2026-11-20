@@ -49,6 +49,11 @@ private class FakeLink(private val script: List<ReadResult>) : UsbLink {
         return true
     }
 
+    /** What a feature read answers; null is a pad that doesn't. */
+    @Volatile var firmware: ByteArray? = null
+
+    override fun readFeature(reportId: Int, length: Int): ByteArray? = firmware
+
     override fun releaseInterfaces() {
         events.add("release readerAlive=${readerThread?.isAlive} writerAlive=${writerThread?.isAlive}")
     }

@@ -6,17 +6,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
+import dev.dsprobe.app.output.OutputsShown
+import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.route.Feature
 import dev.dsprobe.app.ui.theme.DsColors
 import dev.dsprobe.pad.Button
 import dev.dsprobe.pad.Dpad
+import dev.dsprobe.pad.MuteLed
+import kotlin.math.sin
 
 private const val DRAWING_ASPECT = 1.6f
 private const val TILT_PITCH_PX_PER_DEGREE = 0.6f
+private const val MUTE_PULSE_MS = 300f // a guess: tune by eye
 
 // positions are fractions of the canvas; our own outline, not Sony artwork
 private val FACE_CENTER = Offset(0.78f, 0.42f)
@@ -91,6 +97,35 @@ private fun DrawScope.drawCentre(ui: LiveUi, locked: Set<Feature>) {
     if (Feature.MUTE_BUTTON in locked) drawLock(Offset(0.5f * w, 0.62f * h), h * 0.06f)
 }
 
+// the lightbar is a thin bar down each side of the touchpad; the player LEDs sit under it
+private fun DrawScope.drawLightsAndLeds(ui: LiveUi, shown: OutputsShown) {
+    val w = size.width
+    val h = size.height
+    val bar = Color(shown.lightbar.r.toInt(), shown.lightbar.g.toInt(), shown.lightbar.b.toInt())
+    for (left in listOf(0.350f, 0.638f)) {
+        val topLeft = Offset(left * w, 0.21f * h)
+        val barSize = Size(0.012f * w, 0.20f * h)
+        drawRect(bar, topLeft, barSize)
+        drawRect(DsColors.Outline, topLeft, barSize, style = Stroke(width = 1.5f))
+    }
+    for (i in 0 until AppLimits.PLAYER_LED_COUNT) {
+        val on = shown.playerLeds and (1 shl i) != 0
+        val spot = Offset((0.42f + 0.04f * i) * w, 0.445f * h)
+        drawCircle(if (on) Color.White else DsColors.SurfaceHigh, h * 0.014f, spot)
+        drawCircle(DsColors.Outline, h * 0.014f, spot, style = Stroke(width = 1.5f))
+    }
+    val pulse = 0.5f + 0.5f * sin(ui.feel.nowMs / MUTE_PULSE_MS)
+    val muteAlpha = when (shown.muteLed) {
+        MuteLed.OFF -> 0f
+        MuteLed.ON -> 1f
+        MuteLed.PULSE -> pulse
+    }
+    val mute = Offset(0.56f * w, 0.617f * h)
+    drawCircle(DsColors.SurfaceHigh, h * 0.016f, mute)
+    drawCircle(DsColors.Warn.copy(alpha = muteAlpha), h * 0.016f, mute)
+    drawCircle(DsColors.Outline, h * 0.016f, mute, style = Stroke(width = 1.5f))
+}
+
 private fun DrawScope.drawSticks(ui: LiveUi) {
     val s = ui.frame.state
     val radius = size.height * 0.11f
@@ -111,7 +146,7 @@ fun buttonGlow(ui: LiveUi, button: Button): Float =
     glowAlpha(button in ui.frame.state.held, ui.feel.buttonActiveMs[button], ui.feel.nowMs)
 
 @Composable
-fun ControllerDrawing(ui: LiveUi, locked: Set<Feature>, modifier: Modifier = Modifier) {
+fun ControllerDrawing(ui: LiveUi, locked: Set<Feature>, shown: OutputsShown, modifier: Modifier = Modifier) {
     val tilt = tiltOf(ui.frame.state.accel)
     Canvas(modifier.aspectRatio(DRAWING_ASPECT)) {
         withTransform({
@@ -126,6 +161,7 @@ fun ControllerDrawing(ui: LiveUi, locked: Set<Feature>, modifier: Modifier = Mod
             drawDpad(ui)
             drawFaceButtons(ui)
             drawCentre(ui, locked)
+            drawLightsAndLeds(ui, shown)
             drawSticks(ui)
         }
     }

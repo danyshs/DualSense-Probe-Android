@@ -62,7 +62,7 @@ private fun go(state: RouteState, vararg effects: RouteEffect): RouteStep = Rout
 
 /** Enters Android mode; its listeners only start while the app is in front. */
 private fun androidMode(pad: FoundPad, notice: Notice?, foreground: Boolean, vararg before: RouteEffect): RouteStep {
-    val mode = AndroidMode(pad, reductions(Route.ANDROID, pad.transport), notice)
+    val mode = AndroidMode(pad, notice)
     val start = if (foreground) listOf(StartAndroidRoute(pad)) else emptyList()
     return RouteStep(mode, before.toList() + start)
 }
@@ -110,7 +110,7 @@ private fun onAndroidMode(s: AndroidMode, e: RouteEvent, fg: Boolean): RouteStep
 private fun onAndroidUsbAttached(s: AndroidMode, e: UsbAttached): RouteStep {
     if (s.pad.transport == Transport.USB) return ignore(s, e)
     val pad = s.pad.copy(usbDevice = e.usb.device, transport = Transport.USB, alsoPairedBluetooth = true)
-    return go(AndroidMode(pad, reductions(Route.ANDROID, Transport.USB), s.notice))
+    return go(AndroidMode(pad, s.notice))
 }
 
 /** USB pad whose input devices vanished while it is still listed: another app may hold it. */

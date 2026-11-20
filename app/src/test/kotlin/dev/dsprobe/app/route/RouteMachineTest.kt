@@ -139,7 +139,6 @@ class RouteMachineTest {
         val mode = r.state as RouteState.AndroidMode
         assertEquals(Transport.USB, mode.pad.transport)
         assertEquals(true, mode.pad.alsoPairedBluetooth)
-        assertEquals(reductions(Route.ANDROID, Transport.USB), mode.reduced)
     }
 
     @Test fun appStopAndStartTearDownAndRebuildTheAndroidRoute() {

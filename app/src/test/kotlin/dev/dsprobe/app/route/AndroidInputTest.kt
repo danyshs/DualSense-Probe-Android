@@ -8,6 +8,7 @@ import dev.dsprobe.pad.Button
 import dev.dsprobe.pad.Dpad
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -87,11 +88,30 @@ class AndroidInputTest {
         assertEquals(MotionUnit.SI, gyro.unit)
     }
 
-    @Test fun batteryReadsPercentAndRefusesUnknown() {
-        assertEquals(Battery.Percent(85), batteryFrom(true, 0.85f))
-        assertEquals(Battery.Percent(100), batteryFrom(true, 1.7f))
-        assertNull(batteryFrom(true, Float.NaN))
-        assertNull(batteryFrom(true, -0.01f)) // what the USB path reported (P79)
-        assertNull(batteryFrom(false, 0.5f))
+    @Test fun batteryReadsPercentAndShowsAnythingElseAsAndroidsRawAnswer() {
+        assertEquals(Battery.Percent(85), batteryFrom(true, 0.85f, 3))
+        assertEquals(Battery.Percent(100), batteryFrom(true, 1.7f, 3))
+        assertEquals(Battery.AndroidRaw(-0.01f, 1), batteryFrom(true, -0.01f, 1)) // what the USB path reported
+        assertEquals(Battery.AndroidRaw(0.5f, 1), batteryFrom(false, 0.5f, 1))
+        val nan = batteryFrom(true, Float.NaN, 1) as Battery.AndroidRaw
+        assertTrue(nan.capacity.isNaN())
+    }
+
+    @Test fun rumbleGoesToTheIdsAndroidReportsLowerIdIsLeft() {
+        assertEquals(listOf(0 to 200, 1 to 50), rumblePlan(listOf(0, 1), 200, 50))
+        assertEquals(listOf(4 to 200, 9 to 50), rumblePlan(listOf(9, 4), 200, 50))
+        assertEquals(listOf(1 to 50), rumblePlan(listOf(0, 1), 0, 50))
+        assertEquals(emptyList<Pair<Int, Int>>(), rumblePlan(listOf(0, 1), 0, 0))
+    }
+
+    @Test fun oneVibratorGetsTheStrongerMotorAndNoneGetsNothing() {
+        assertEquals(listOf(7 to 90), rumblePlan(listOf(7), 90, 10))
+        assertEquals(emptyList<Pair<Int, Int>>(), rumblePlan(emptyList(), 255, 255))
+        assertEquals(2, rumblePlan(listOf(0, 1, 2), 1, 1).size)
+    }
+
+    @Test fun aStrengthPast255IsRefused() {
+        assertThrows(IllegalArgumentException::class.java) { rumblePlan(listOf(0, 1), 256, 0) }
+        assertThrows(IllegalArgumentException::class.java) { rumblePlan(listOf(0, 1), 0, -1) }
     }
 }

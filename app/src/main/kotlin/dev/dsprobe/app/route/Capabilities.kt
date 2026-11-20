@@ -1,8 +1,13 @@
 package dev.dsprobe.app.route
 
+import android.hardware.Sensor
+import android.view.InputDevice
+import android.view.MotionEvent
+import android.media.AudioDeviceInfo
 import androidx.annotation.StringRes
 import dev.dsprobe.app.R
-import dev.dsprobe.app.pad.Transport
+import dev.dsprobe.app.AppLimits
+import dev.dsprobe.pad.Button
 
 /** Every row of the Android mode table, split where the screen greys one part and not the other. */
 enum class Feature {
@@ -10,36 +15,61 @@ enum class Feature {
     RUMBLE, LIGHTBAR, PLAYER_LEDS, BATTERY, MUTE_LED, ADAPTIVE_TRIGGERS, MICROPHONE, SPEAKER, HEADPHONES, HD_HAPTICS,
 }
 
-/** A feature the route can't reach, with the one-line reason as a string resource. */
+/** A feature Android offers nothing for right now, with the one-line reason as a string resource. */
 data class Reduction(val feature: Feature, @param:StringRes val reasonRes: Int)
 
-// the Android mode table as data (measured on one phone, see FACTS P70-P80)
-private val ANDROID_ALWAYS = listOf(
-    Reduction(Feature.MUTE_BUTTON, R.string.reason_mute_button),
-    Reduction(Feature.TOUCHPAD_TWO_FINGERS, R.string.reason_two_fingers),
-    Reduction(Feature.MUTE_LED, R.string.reason_no_android_api),
-    Reduction(Feature.ADAPTIVE_TRIGGERS, R.string.reason_no_android_api),
-    Reduction(Feature.SPEAKER, R.string.reason_no_audio_output),
-    Reduction(Feature.HEADPHONES, R.string.reason_no_audio_output),
-    Reduction(Feature.HD_HAPTICS, R.string.reason_no_audio_output),
-)
+/** The light Android calls the lightbar, the part of the five player LED names, and the guess for a mute light. */
+const val LIGHTBAR_NAME = "indicator"
+const val PLAYER_LIGHT_NAME_PART = "player-"
+const val MUTE_LIGHT_NAME_PART = "mute"
 
-private val ANDROID_USB_ONLY = listOf(
-    Reduction(Feature.LIGHTBAR, R.string.reason_lights_usb),
-    Reduction(Feature.PLAYER_LEDS, R.string.reason_lights_usb),
-    Reduction(Feature.BATTERY, R.string.reason_battery_usb),
-)
+private val GYRO_OR_ACCEL = setOf(Sensor.TYPE_GYROSCOPE, Sensor.TYPE_ACCELEROMETER)
+private val STICK_AXES = setOf(MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
+private val TRIGGER_AXES = setOf(MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_RTRIGGER)
+private const val TOUCHPAD_FINGERS_MIN = 2
 
-private val ANDROID_BLUETOOTH_ONLY = listOf(
-    Reduction(Feature.MICROPHONE, R.string.reason_mic_bluetooth),
-)
+private fun hasSource(sources: Int, source: Int) = sources and source == source
 
-/** What the route can't reach on this transport, in [Feature] order. Direct USB over Bluetooth never exists. */
-fun reductions(route: Route, transport: Transport): List<Reduction> {
-    require(!(route == Route.DIRECT_USB && transport == Transport.BLUETOOTH)) { "Direct USB needs a cable" }
-    if (route == Route.DIRECT_USB) return emptyList()
-    val perTransport = if (transport == Transport.USB) ANDROID_USB_ONLY else ANDROID_BLUETOOTH_ONLY
-    val result = (ANDROID_ALWAYS + perTransport).sortedBy { it.feature.ordinal }
-    check(result.map { it.feature }.toSet().size == result.size) { "a feature listed twice" }
+private fun playerLightCount(lights: List<LightAnswer>): Int =
+    (1..AppLimits.PLAYER_LED_COUNT).count { n -> lights.any { it.name.endsWith(PLAYER_LIGHT_NAME_PART + n) } }
+
+/**
+ * True for each feature Android's answers offer something for. A feature is never decided by the
+ * transport: it is offered when Android lists the key, axis, sensor, vibrator, light or battery for it.
+ */
+private fun offered(a: AndroidAnswers): Map<Feature, Boolean> {
+    val keys = a.keys.orEmpty()
+    val lights = a.lights.orEmpty()
+    return mapOf(
+        Feature.BUTTONS to keys.any { it.present },
+        // no Android key code is known for Mute: it unlocks only when a key mapped to it is offered
+        Feature.MUTE_BUTTON to keys.any { it.present && it.button == Button.MUTE },
+        Feature.STICKS to a.axes.orEmpty().any { it.axis in STICK_AXES },
+        Feature.TRIGGERS_ANALOG to a.axes.orEmpty().any { it.axis in TRIGGER_AXES },
+        Feature.TOUCHPAD_POINTER to (hasSource(a.sources, InputDevice.SOURCE_MOUSE) || hasSource(a.sources, InputDevice.SOURCE_TOUCHPAD)),
+        // Android has no query for multi-touch: it is offered once a second finger has been seen
+        Feature.TOUCHPAD_TWO_FINGERS to (a.touchPointersSeen >= TOUCHPAD_FINGERS_MIN),
+        Feature.MOTION_SENSORS to a.sensors.orEmpty().any { it.type in GYRO_OR_ACCEL },
+        Feature.RUMBLE to a.vibratorIds.orEmpty().isNotEmpty(),
+        Feature.LIGHTBAR to lights.any { it.name == LIGHTBAR_NAME },
+        Feature.PLAYER_LEDS to (playerLightCount(lights) == AppLimits.PLAYER_LED_COUNT),
+        // Android's raw battery answer is shown even when it reads as unknown: only a failed question locks it
+        Feature.BATTERY to (a.battery != null),
+        Feature.MUTE_LED to lights.any { it.name.contains(MUTE_LIGHT_NAME_PART, ignoreCase = true) },
+        // the SDK has no call for trigger effects, so no answer can offer them
+        Feature.ADAPTIVE_TRIGGERS to false,
+        Feature.MICROPHONE to a.audioInputs.orEmpty().any { it.type == AudioDeviceInfo.TYPE_USB_HEADSET },
+        Feature.SPEAKER to a.audioOutputs.orEmpty().any { it.type == AudioDeviceInfo.TYPE_USB_HEADSET },
+        Feature.HEADPHONES to a.audioOutputs.orEmpty().any { it.type == AudioDeviceInfo.TYPE_USB_HEADSET },
+        Feature.HD_HAPTICS to a.audioOutputs.orEmpty().any { it.type == AudioDeviceInfo.TYPE_USB_HEADSET },
+    )
+}
+
+/** What Android offers nothing for, in [Feature] order. Direct USB has no such list: nothing is asked of Android there. */
+fun reductions(answers: AndroidAnswers): List<Reduction> {
+    val offered = offered(answers)
+    check(offered.keys.size == Feature.entries.size) { "a feature has no rule" }
+    val result = Feature.entries.filter { offered.getValue(it).not() }.map { Reduction(it, R.string.reason_android_offers_nothing) }
+    check(result.size <= Feature.entries.size) { "more locks than features" }
     return result
 }

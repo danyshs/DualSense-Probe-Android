@@ -2,12 +2,14 @@ package dev.dsprobe.app.ui
 
 import dev.dsprobe.app.live.Frame
 import dev.dsprobe.app.pad.FoundPad
+import dev.dsprobe.app.route.AndroidAnswers
 import dev.dsprobe.app.route.Reduction
 import dev.dsprobe.app.route.Route
 import dev.dsprobe.app.route.RouteState
+import dev.dsprobe.app.route.reductions
 
-/** The Outputs and Debug screens join with their own build steps. */
-enum class Screen { LIVE, TOO_MANY }
+/** The Debug screen joins with its own build step. */
+enum class Screen { LIVE, OUTPUTS, TOO_MANY }
 
 /** One frame of everything the live screen draws: what the pad did and the time-based effects on it. */
 data class LiveUi(val frame: Frame, val feel: FeelFrame) {
@@ -16,7 +18,12 @@ data class LiveUi(val frame: Frame, val feel: FeelFrame) {
     }
 }
 
-fun screenFor(state: RouteState): Screen = if (state is RouteState.TooMany) Screen.TOO_MANY else Screen.LIVE
+/** Too many pads wins over everything; otherwise the Outputs screen is shown while the user asked for it. */
+fun screenFor(state: RouteState, wantsOutputs: Boolean): Screen = when {
+    state is RouteState.TooMany -> Screen.TOO_MANY
+    wantsOutputs -> Screen.OUTPUTS
+    else -> Screen.LIVE
+}
 
 /** The title names the route that is live, or the one being left. */
 fun routeOf(state: RouteState): Route = when (state) {
@@ -33,4 +40,19 @@ fun padOf(state: RouteState): FoundPad? = when (state) {
     is RouteState.NoPad, is RouteState.TooMany, is RouteState.Stranded -> null
 }
 
-fun reducedOf(state: RouteState): List<Reduction> = (state as? RouteState.AndroidMode)?.reduced ?: emptyList()
+/** What the screens can ask of the app; the callbacks of the buttons they draw. */
+class ScreenActions(
+    val onRefreshAnswers: () -> Unit,
+    val onSwitch: () -> Unit,
+    val onBack: () -> Unit,
+    val onCrashNow: (() -> Unit)?,
+    val onOpenOutputs: () -> Unit,
+    val onCloseOutputs: () -> Unit,
+)
+
+/** What Android offers nothing for, live. Only Android mode asks Android; Direct USB locks nothing. */
+fun lockedFor(state: RouteState, answers: AndroidAnswers?): List<Reduction> =
+    if (state is RouteState.AndroidMode && answers != null) reductions(answers) else emptyList()
+
+/** Outputs can go somewhere only while a route is live. */
+fun canSendOutputs(state: RouteState): Boolean = state is RouteState.AndroidMode || state is RouteState.DirectUsb

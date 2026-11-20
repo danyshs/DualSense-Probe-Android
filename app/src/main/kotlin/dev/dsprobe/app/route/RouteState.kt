@@ -25,7 +25,7 @@ sealed interface RouteState {
     /** [usb] is set while UsbManager lists a pad and the grace period for its input devices runs. */
     data class NoPad(val usb: SeenUsb? = null) : RouteState
     data object TooMany : RouteState
-    data class AndroidMode(val pad: FoundPad, val reduced: List<Reduction>, val notice: Notice? = null) : RouteState
+    data class AndroidMode(val pad: FoundPad, val notice: Notice? = null) : RouteState
     data class AskingUsbPermission(val pad: FoundPad, val grantWaitingForApp: Boolean = false) : RouteState
     data class DirectUsb(val pad: FoundPad, val secondPadIgnored: Boolean = false) : RouteState
     data class Releasing(val pad: FoundPad, val reason: ReleaseReason, val usbGone: Boolean = false) : RouteState
