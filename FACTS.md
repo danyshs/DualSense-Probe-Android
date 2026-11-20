@@ -106,6 +106,7 @@ The only source of protocol facts for this project's code. Code is written from 
 | P77 | `getLightsManager()`: 6 lights, type INPUT: "indicator" (RGB, the lightbar), five named "…player-1" to "…player-5" (brightness only). No mute LED. Change through `openSession()` + `requestLights`; `close()` hands them back. | A, S, C4 | yes (Bluetooth); no (USB, see P79) |
 | P78 | `getBatteryState()`: `isPresent`, `getCapacity` (0-1 or NaN), `getStatus`. The battery's name contains the pad's Bluetooth address: never log or show it. | A, S | yes (Bluetooth: 85%, discharging); no (USB, see P79) |
 | P79 | On USB, lights and battery fail silently: `requestLights` returns normally and nothing changes; battery capacity -0.01, status UNKNOWN. The system log shows SELinux denials for `system_server` on the pad's sysfs LED and battery files. | C4, A, O | yes |
+| P81 | Closing a lights session (`LightsManager.Session.close()`) on which `requestLights` was never called throws a `NullPointerException` from the system (Android 17 on the Pixel). Uncaught in `onStop`, it kills the app. | O 2026-11-19 (crash log) | yes |
 | P80 | Mic: `AudioManager.getDevices(GET_DEVICES_INPUTS)` lists the pad as `TYPE_USB_HEADSET`, 48 kHz, 2 channels; no output device for the pad. `AudioRecord` with `setPreferredDevice` recorded from it (needs `RECORD_AUDIO`); `getRoutedDevice()` confirms. Loud input clips. | A, S, C4, O | yes |
 
 ## Toolchain (this Mac, 2026-11-19)

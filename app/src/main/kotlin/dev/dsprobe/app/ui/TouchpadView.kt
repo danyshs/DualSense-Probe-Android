@@ -29,7 +29,7 @@ private const val RIPPLE_RADIUS_PX = 90f
  * the rectangle, and says so. [lockedReason] greys the two-finger part with its reason.
  */
 @Composable
-fun TouchpadView(ui: LiveUi, lockedReason: Int?, modifier: Modifier = Modifier) {
+fun TouchpadView(ui: LiveUi, lockedReason: Int?, androidMode: Boolean, modifier: Modifier = Modifier) {
     val touches = ui.frame.state.touches
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row { Text(stringResource(R.string.label_touchpad), color = DsColors.TextDim) }
@@ -47,12 +47,15 @@ fun TouchpadView(ui: LiveUi, lockedReason: Int?, modifier: Modifier = Modifier) 
             for (t in touches) drawCircle(DsColors.Accent, FINGER_PX, Offset(t.x * size.width, t.y * size.height))
             if (lockedReason != null) drawLock(Offset(size.width - LOCK_PX * 1.5f, LOCK_PX * 1.5f), LOCK_PX)
         }
-        Text(touchText(touches), style = NumberStyle)
+        if (androidMode) Text(stringResource(R.string.touchpad_android_note), color = DsColors.TextDim)
+        // two fixed lines (one per finger slot) so a second finger never adds height
+        Text(touchText(touches), style = NumberStyle, minLines = TOUCH_LINES, maxLines = TOUCH_LINES, softWrap = false)
         if (lockedReason != null) Text(stringResource(lockedReason), color = DsColors.TextDim)
     }
 }
 
 private const val LOCK_PX = 28f
+private const val TOUCH_LINES = 2
 
 @Composable
 private fun touchText(touches: List<TouchPoint>): String {
@@ -67,5 +70,5 @@ private fun touchText(touches: List<TouchPoint>): String {
             },
         )
     }
-    return parts.joinToString("  ")
+    return parts.joinToString("\n")
 }

@@ -33,13 +33,12 @@
     <string name="notice_claim_failed">Android would not hand the pad over (error %1$s).</string>
     <string name="too_many_title">One pad at a time</string>
     <string name="too_many_body">Two DualSense controllers are connected. Unplug or unpair one.</string>
-    <string name="trigger_value">%1$d  %2$d%%</string>
     <string name="stick_values">x %1$s  y %2$s</string>
     <string name="label_touchpad">Touchpad</string>
     <string name="touch_none">no finger</string>
     <string name="touch_pointer">pointer  x %1$s  y %2$s</string>
     <string name="touch_finger">finger %1$d  x %2$d  y %3$d</string>
-    <string name="touch_pointer_note">The touchpad dot is Android\'s mouse pointer scaled to the rectangle, not the finger\'s own position.</string>
+    <string name="touchpad_android_note">Android turns the touchpad into a mouse pointer, so this shows the pointer, not your finger. Direct USB shows real finger positions.</string>
     <string name="motion_values">x %1$s  y %2$s  z %3$s</string>
     <string name="label_motion_raw">axes not yet proven</string>
     <string name="motion_none">no sensor values yet</string>

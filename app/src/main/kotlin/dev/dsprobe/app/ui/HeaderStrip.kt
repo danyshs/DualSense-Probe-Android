@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,6 +82,8 @@ private fun padName(pad: FoundPad?): String = when {
     else -> stringResource(R.string.pad_dualsense)
 }
 
+private const val BATTERY_WIDTH_DP = 128 // fits "Battery raw 15" in 14 sp monospace
+
 @Composable
 private fun batteryText(battery: Battery?): String = when (battery) {
     is Battery.Percent -> stringResource(R.string.battery_percent, battery.percent)
@@ -115,16 +119,16 @@ fun HeaderStrip(
     Column(modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             val routeName = if (routeOf(state) == Route.ANDROID) R.string.route_android else R.string.route_direct_usb
-            Text(stringResource(routeName), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            if (pad != null) Text(stringResource(R.string.battery_label, batteryText(battery)), style = NumberStyle)
+            Text(stringResource(routeName), Modifier.weight(1f), fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            if (pad != null) Text(stringResource(R.string.battery_label, batteryText(battery)), Modifier.padding(start = 8.dp).width(BATTERY_WIDTH_DP.dp), style = NumberStyle, textAlign = TextAlign.End, maxLines = 1, softWrap = false)
         }
-        Text(padLine(pad), color = DsColors.TextDim)
+        Text(padLine(pad), Modifier.fillMaxWidth(), color = DsColors.TextDim)
         if (state is RouteState.AndroidMode) AndroidBanner(state, reduced, showReduced, directUsbAvailable, onSwitch) { showReduced = !showReduced }
         if (state is RouteState.DirectUsb) {
             Button(onClick = onBack) { Text(stringResource(R.string.back_to_android)) }
             if (state.secondPadIgnored) Text(stringResource(R.string.second_pad_ignored), color = DsColors.Warn)
         }
-        stateMessageRes(state)?.let { Text(stringResource(it), color = DsColors.Warn) }
+        stateMessageRes(state)?.let { Text(stringResource(it), Modifier.fillMaxWidth(), color = DsColors.Warn) }
     }
 }
 
@@ -145,10 +149,10 @@ private fun AndroidBanner(
     onSwitch: () -> Unit,
     onToggle: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (state.pad.transport == Transport.BLUETOOTH) {
-            Text(stringResource(R.string.banner_bluetooth), color = DsColors.Warn, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.banner_bluetooth_detail), color = DsColors.TextDim)
+            Text(stringResource(R.string.banner_bluetooth), Modifier.fillMaxWidth(), color = DsColors.Warn, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.banner_bluetooth_detail), Modifier.fillMaxWidth(), color = DsColors.TextDim)
         }
         if (reduced.isNotEmpty()) {
             Text(
@@ -160,8 +164,8 @@ private fun AndroidBanner(
         }
         if (state.pad.transport == Transport.USB) {
             Button(onClick = onSwitch, enabled = directUsbAvailable) { Text(stringResource(R.string.switch_to_direct_usb)) }
-            if (!directUsbAvailable) Text(stringResource(R.string.direct_usb_unbuilt), color = DsColors.TextDim)
+            if (!directUsbAvailable) Text(stringResource(R.string.direct_usb_unbuilt), Modifier.fillMaxWidth(), color = DsColors.TextDim)
         }
-        state.notice?.let { Text(stringResource(noticeRes(it.kind), it.detail), color = DsColors.Warn) }
+        state.notice?.let { Text(stringResource(noticeRes(it.kind), it.detail), Modifier.fillMaxWidth(), color = DsColors.Warn) }
     }
 }

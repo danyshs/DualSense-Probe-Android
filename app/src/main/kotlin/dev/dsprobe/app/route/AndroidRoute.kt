@@ -32,6 +32,27 @@ private const val LIGHTBAR_NAME = "indicator"
 private const val PLAYER_LED_COUNT = 5
 private const val RUMBLE_LEFT_ID = 0
 private const val RUMBLE_RIGHT_ID = 1
+private const val LATE_DROP_COUNT_MAX = 1_000_000
+
+/** Next value of the late-event counter: counts up, stops at the limit so it can never wrap. */
+internal fun nextLateDropCount(current: Int): Int {
+    require(current in 0..LATE_DROP_COUNT_MAX) { "late drop count $current" }
+    return if (current == LATE_DROP_COUNT_MAX) current else current + 1
+}
+
+/**
+ * Runs [close] only when a request was made: the system throws on closing a session that never had one.
+ * Returns the failure instead of throwing, since that is Android's fault, not ours.
+ */
+internal fun closeIfRequested(requested: Boolean, close: () -> Unit): RuntimeException? {
+    if (!requested) return null
+    return try {
+        close()
+        null
+    } catch (e: RuntimeException) {
+        e
+    }
+}
 
 private fun mainThread(): Thread = Looper.getMainLooper().thread
 
@@ -49,10 +70,23 @@ class AndroidRoute(
     private var device: InputDevice? = null
     private var state = PadState.EMPTY
     private var lightsSession: LightsSession? = null
+    private var lightsRequested = false
     private var sensorManager: SensorManager? = null
+
+    /** Callbacks that arrived after stop() and were dropped; for the log. */
+    var lateEventsDropped = 0
+        private set
+
+    // callbacks already queued on the main looper can outlive stop(); they are not input
+    private fun droppedAsLate(): Boolean {
+        if (pad != null) return false
+        lateEventsDropped = nextLateDropCount(lateEventsDropped)
+        return true
+    }
 
     private val sensorListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
+            if (droppedAsLate()) return
             if (event.values.size < 3) return
             val (x, y, z) = event.values
             state = when (event.sensor.type) {
@@ -68,6 +102,7 @@ class AndroidRoute(
 
     private val batteryPoll = object : Runnable {
         override fun run() {
+            if (droppedAsLate()) return
             val current = device ?: return
             val battery = current.batteryState
             state = state.copy(battery = batteryFrom(battery.isPresent, battery.capacity))
@@ -124,12 +159,13 @@ class AndroidRoute(
     override fun stop() {
         pad ?: return
         check(Thread.currentThread() === mainThread()) { "AndroidRoute stops on the main thread" }
-        handler.removeCallbacks(batteryPoll)
+        handler.removeCallbacksAndMessages(null)
         sensorManager?.unregisterListener(sensorListener)
         sensorManager = null
         device?.vibratorManager?.cancel()
-        lightsSession?.close()
+        closeIfRequested(lightsRequested) { lightsSession?.close() }?.let { Log.w(TAG, "lights session close failed", it) }
         lightsSession = null
+        lightsRequested = false
         device = null
         pad = null
         state = PadState.EMPTY
@@ -139,6 +175,7 @@ class AndroidRoute(
 
     /** Returns true when the event was the pad's, so the activity swallows it. */
     fun onKey(event: KeyEvent): Boolean {
+        if (droppedAsLate()) return false
         if (!handlesDevice(event.deviceId)) return false
         val down = event.action == KeyEvent.ACTION_DOWN
         if (down || event.action == KeyEvent.ACTION_UP) {
@@ -157,6 +194,7 @@ class AndroidRoute(
 
     /** Joystick axes, or the touchpad's mouse pointer scaled by the window size. Returns true when it was the pad's. */
     fun onMotion(event: MotionEvent, windowWidthPx: Int, windowHeightPx: Int): Boolean {
+        if (droppedAsLate()) return false
         if (!handlesDevice(event.deviceId)) return false
         if (event.isFromSource(InputDevice.SOURCE_JOYSTICK) && event.action == MotionEvent.ACTION_MOVE) {
             state = state.withAxes(readAxes(event))
@@ -236,6 +274,7 @@ class AndroidRoute(
 
     private fun submit(request: LightsRequest): ApiAnswer {
         val session = lightsSession ?: return ApiAnswer.Failed("no lights session")
+        lightsRequested = true
         session.requestLights(request)
         return ApiAnswer.Ok
     }

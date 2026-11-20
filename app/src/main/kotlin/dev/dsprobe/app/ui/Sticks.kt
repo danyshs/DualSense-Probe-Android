@@ -35,7 +35,7 @@ fun StickView(label: String, x: Float, y: Float, trail: List<TrailPoint>, nowMs:
             }
             drawCircle(DsColors.Accent, DOT_PX, center + Offset(x, y) * radius)
         }
-        Text(stringResource(R.string.stick_values, signed(x), signed(y)), style = NumberStyle)
+        Text(stringResource(R.string.stick_values, signed(x), signed(y)), style = NumberStyle, maxLines = 1, softWrap = false)
     }
 }
 

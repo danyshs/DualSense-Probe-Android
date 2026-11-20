@@ -62,9 +62,8 @@ fun LiveScreen(
                 StickView(stringResource(R.string.label_left_stick), s.leftX, s.leftY, ui.feel.leftTrail, ui.feel.nowMs, Modifier.weight(1f))
                 StickView(stringResource(R.string.label_right_stick), s.rightX, s.rightY, ui.feel.rightTrail, ui.feel.nowMs, Modifier.weight(1f))
             }
-            TouchpadView(ui, reasons[Feature.TOUCHPAD_TWO_FINGERS])
+            TouchpadView(ui, reasons[Feature.TOUCHPAD_TWO_FINGERS], androidMode = state is RouteState.AndroidMode)
             MotionTraces(ui)
-            if (s.touches.any { it.isPointer }) Text(stringResource(R.string.touch_pointer_note), color = DsColors.TextDim)
         }
     }
 }

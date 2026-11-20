@@ -1,9 +1,9 @@
 package dev.dsprobe.app.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
@@ -16,7 +16,8 @@ import dev.dsprobe.app.ui.theme.DsProbeTheme
 fun AppRoot(session: PadSession) {
     val state by session.controller.state.collectAsState()
     DsProbeTheme {
-        Box(Modifier.fillMaxSize().background(DsColors.Background).safeDrawingPadding()) {
+        Surface(Modifier.fillMaxSize(), color = DsColors.Background, contentColor = DsColors.Text) {
+            Box(Modifier.fillMaxSize().safeDrawingPadding()) {
             when (screenFor(state)) {
                 Screen.LIVE -> LiveScreen(
                     state = state,
@@ -26,6 +27,7 @@ fun AppRoot(session: PadSession) {
                     onBack = session.controller::backToAndroidMode,
                 )
                 Screen.TOO_MANY -> TooManyScreen()
+            }
             }
         }
     }

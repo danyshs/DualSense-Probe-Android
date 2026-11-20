@@ -48,7 +48,7 @@ fun MotionTrace(title: String, history: List<Motion>, scaleFloor: Float, modifie
             trace(history, scale, DsColors.AxisZ) { it.z }
         }
         if (latest != null) {
-            Text(stringResource(R.string.motion_values, signed(latest.x), signed(latest.y), signed(latest.z)), style = NumberStyle)
+            Text(stringResource(R.string.motion_values, signed(latest.x), signed(latest.y), signed(latest.z)), style = NumberStyle, maxLines = 1, softWrap = false)
             if (latest.unit == MotionUnit.RAW_COUNTS) Text(stringResource(R.string.label_motion_raw), color = DsColors.TextDim)
         } else {
             Text(stringResource(R.string.motion_none), color = DsColors.TextDim)
