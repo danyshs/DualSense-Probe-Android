@@ -1,0 +1,21 @@
+package dev.dsprobe.app
+
+/** App-side limits; the report and protocol ones live in :pad's Limits. Units in the names, qualifiers last. */
+object AppLimits {
+    const val STRANDED_GRACE_MS = 3_000L // a guess: a fresh plug's input devices appear well within it
+    const val ANDROID_REBIND_TIMEOUT_MS = 5_000L
+    const val PERMISSION_BACKGROUND_WAIT_MS = 30_000L
+    const val ROUTE_EVENTS_PER_DRAIN_MAX = 64
+    const val FEED_EVENTS_MAX = 4_096
+    const val BATTERY_POLL_INTERVAL_MS = 5_000L
+
+    const val PRESS_GLOW_FADE_MS = 120L // a guess: tune by eye
+    const val STICK_TRAIL_MS = 300L // a guess: tune by eye
+    const val STICK_TRAIL_POINTS_MAX = 32
+    const val STICK_FULL_DEFLECTION_RATIO_MIN = 0.97f
+    const val TRIGGER_PEAK_HOLD_MS = 1_000L
+    const val CLICK_RIPPLE_MS = 400L
+    const val CLICK_RIPPLES_MAX = 4
+    const val MOTION_TRACE_SAMPLES_MAX = 120
+    const val ACCEL_TILT_DEGREES_MAX = 8f
+}
