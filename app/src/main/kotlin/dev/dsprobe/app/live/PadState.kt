@@ -16,7 +16,8 @@ data class TouchPoint(val id: Int, val x: Float, val y: Float, val isPointer: Bo
 
 sealed interface Battery {
     data class Percent(val percent: Int) : Battery
-    data class RawNibble(val nibble: Int) : Battery
+    /** Level and charging nibbles as the pad sends them; their meaning is untested (P18). */
+    data class RawNibble(val levelNibble: Int, val chargingNibble: Int) : Battery
 }
 
 /**

@@ -22,9 +22,9 @@ fun AppRoot(session: PadSession) {
                 Screen.LIVE -> LiveScreen(
                     state = state,
                     live = session.live,
-                    directUsbAvailable = session.directUsbAvailable,
                     onSwitch = session.controller::switchToDirectUsb,
                     onBack = session.controller::backToAndroidMode,
+                    onCrashNow = if (session.crashNowAvailable) session::crashNow else null,
                 )
                 Screen.TOO_MANY -> TooManyScreen()
             }

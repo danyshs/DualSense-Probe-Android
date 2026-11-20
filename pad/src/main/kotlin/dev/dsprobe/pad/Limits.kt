@@ -6,6 +6,12 @@ object Limits {
     const val USB_OUTPUT_REPORT_BYTES = 63
     const val USB_FEATURE_FIRMWARE_REPORT_BYTES = 64
 
+    // interface 3, the HID one (P2)
+    const val USB_HID_INTERFACE_ID = 3
+    const val USB_HID_IN_ENDPOINT_ADDRESS = 0x84
+    const val USB_HID_OUT_ENDPOINT_ADDRESS = 0x03
+    const val USB_HID_ENDPOINT_PACKET_BYTES = 64
+
     const val OUTPUT_INTERVAL_MS_MIN = 10
     const val OUTPUT_RESEND_INTERVAL_MS = 500 // placeholder until a phone test shows whether the pad holds its output
     const val RUMBLE_DURATION_MS_MAX = 5_000

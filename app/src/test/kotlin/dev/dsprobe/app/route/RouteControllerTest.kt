@@ -23,7 +23,7 @@ class RouteControllerTest {
     private val host = FakeHost()
     private val logged = ArrayList<String>()
 
-    private fun controller(directUsb: Boolean = true) = RouteController(host, directUsb) { logged.add(it) }
+    private fun controller() = RouteController(host) { logged.add(it) }
 
     @Test fun aPlugInReadsAsUsbThenInputDevicesAndEndsInAndroidMode() {
         val c = controller()
@@ -54,15 +54,6 @@ class RouteControllerTest {
         c.onFound(FindResult(null, null, true))
         c.onFound(FindResult.NONE)
         assertEquals(RouteState.NoPad(), c.state.value)
-    }
-
-    @Test fun switchIsRefusedAndLoggedUntilDirectUsbIsBuilt() {
-        val c = controller(directUsb = false)
-        c.onStart()
-        c.onFound(FindResult(usbHit, usbPad, false))
-        c.switchToDirectUsb()
-        assertEquals(androidMode(usbPad), c.state.value)
-        assertEquals(1, logged.size)
     }
 
     @Test fun fullTripThroughDirectUsbAndBack() {
@@ -106,6 +97,118 @@ class RouteControllerTest {
         c.backToAndroidMode()
         val failed = runCatching { c.post(RouteEvent.ReleaseFinished) }.exceptionOrNull()
         assertTrue(failed is IllegalStateException)
+    }
+}
+
+/** The Direct USB arrows as the controller runs them: state plus what it asked the host to do. */
+class RouteControllerUsbTest {
+    private val host = FakeHost()
+    private val c = RouteController(host) {}
+
+    private fun inAndroidMode() {
+        c.onStart()
+        c.onFound(FindResult(usbHit, usbPad, false))
+        host.calls.clear()
+    }
+
+    private fun claimed() {
+        inAndroidMode()
+        c.switchToDirectUsb()
+        c.post(RouteEvent.PermissionResult(true))
+        c.post(RouteEvent.ClaimResult(OpenResult.Opened))
+        assertEquals(RouteState.DirectUsb(usbPad), c.state.value)
+        host.calls.clear()
+    }
+
+    @Test fun aRefusedPermissionComesBackToAndroidModeWithTheReasonAndTheRouteRunning() {
+        inAndroidMode()
+        c.switchToDirectUsb()
+        c.post(RouteEvent.PermissionResult(false))
+        assertEquals(androidMode(usbPad, Notice(NoticeKind.PERMISSION_DENIED)), c.state.value)
+        assertEquals(listOf("stop", "permission", "cancel PERMISSION_WAIT", "start [7]"), host.calls)
+    }
+
+    @Test fun aRefusedClaimShowsItsNoticeAndNothingNeedsReleasing() {
+        inAndroidMode()
+        c.switchToDirectUsb()
+        c.post(RouteEvent.PermissionResult(true))
+        c.post(RouteEvent.ClaimResult(OpenResult.ClaimFailed(-1)))
+        assertEquals(androidMode(usbPad, Notice(NoticeKind.CLAIM_FAILED, "-1")), c.state.value)
+        assertEquals(false, host.calls.contains("release"))
+    }
+
+    @Test fun aWrongLayoutIsShownNotClaimed() {
+        inAndroidMode()
+        c.switchToDirectUsb()
+        c.post(RouteEvent.PermissionResult(true))
+        c.post(RouteEvent.ClaimResult(OpenResult.WrongLayout("no endpoint 0x84")))
+        assertEquals(androidMode(usbPad, Notice(NoticeKind.WRONG_LAYOUT, "no endpoint 0x84")), c.state.value)
+    }
+
+    @Test fun aReaderErrorReleasesThenWaitsForAndroidToTakeThePadBack() {
+        claimed()
+        c.post(RouteEvent.ReaderError("read failed"))
+        assertEquals(RouteState.Releasing(usbPad, ReleaseReason.READER_ERROR), c.state.value)
+        assertEquals(listOf("release"), host.calls)
+        host.onResync = { c.post(RouteEvent.InputDevicesAppeared(usbPad.copy(inputDeviceIds = listOf(30)))) }
+        c.post(RouteEvent.ReleaseFinished)
+        assertEquals(androidMode(usbPad.copy(inputDeviceIds = listOf(30))), c.state.value)
+    }
+
+    @Test fun anUnplugWhileClaimedReleasesAndEndsWithNoPadAndNoWaitingForAndroid() {
+        claimed()
+        c.onUsbDetached()
+        assertEquals(RouteState.Releasing(usbPad, ReleaseReason.USB_DETACHED, usbGone = true), c.state.value)
+        c.post(RouteEvent.ReleaseFinished)
+        assertEquals(RouteState.NoPad(), c.state.value)
+        assertEquals(listOf("release"), host.calls)
+    }
+
+    @Test fun androidNeverRebindingEndsStranded() {
+        claimed()
+        c.backToAndroidMode()
+        c.post(RouteEvent.ReleaseFinished)
+        assertEquals(RouteState.WaitingForAndroid(usbPad), c.state.value)
+        c.post(RouteEvent.RebindTimeout)
+        assertEquals(RouteState.Stranded(usbHit), c.state.value)
+    }
+
+    @Test fun leavingTheScreenTwiceReleasesOnce() {
+        claimed()
+        c.onStop()
+        c.onStop()
+        assertEquals(1, host.calls.count { it == "release" })
+        assertTrue(c.state.value is RouteState.Releasing)
+    }
+
+    @Test fun aPermissionAnsweredInTheBackgroundWaitsForTheAppThenClaims() {
+        inAndroidMode()
+        c.switchToDirectUsb()
+        c.onStop()
+        c.post(RouteEvent.PermissionResult(true))
+        assertEquals(RouteState.AskingUsbPermission(usbPad, grantWaitingForApp = true), c.state.value)
+        assertEquals(false, host.calls.contains("open"))
+        c.onStart()
+        assertEquals(true, host.calls.contains("open"))
+    }
+
+    @Test fun aClaimThatLandsAfterTheAppLeftIsGivenStraightBack() {
+        inAndroidMode()
+        c.switchToDirectUsb()
+        c.post(RouteEvent.PermissionResult(true))
+        c.onStop()
+        c.post(RouteEvent.ClaimResult(OpenResult.Opened))
+        assertEquals(RouteState.Releasing(usbPad, ReleaseReason.APP_STOPPED), c.state.value)
+        assertEquals(true, host.calls.contains("release"))
+    }
+
+    @Test fun lateBroadcastsInOddOrdersAreIgnoredNotThrown() {
+        claimed()
+        c.post(RouteEvent.PermissionResult(true))
+        c.post(RouteEvent.ClaimResult(OpenResult.Opened))
+        c.post(RouteEvent.ReleaseFinished)
+        c.post(RouteEvent.RebindTimeout)
+        assertEquals(RouteState.DirectUsb(usbPad), c.state.value)
     }
 }
 

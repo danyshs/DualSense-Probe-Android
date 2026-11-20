@@ -9,6 +9,13 @@ object AppLimits {
     const val FEED_EVENTS_MAX = 4_096
     const val BATTERY_POLL_INTERVAL_MS = 5_000L
 
+    const val READ_TIMEOUT_MS = 100
+    const val OUTPUT_WRITE_TIMEOUT_MS = 100 // a guess: same as the read wait
+    const val RELEASE_JOIN_TIMEOUT_MS = 500L
+    const val CRASH_RECORD_BYTES_MAX = 64_000
+    const val SEND_FAILURES_IN_A_ROW_MAX = 5
+    const val REJECTED_REPORTS_LOGGED_MAX = 20
+
     const val PRESS_GLOW_FADE_MS = 120L // a guess: tune by eye
     const val STICK_TRAIL_MS = 300L // a guess: tune by eye
     const val STICK_TRAIL_POINTS_MAX = 32

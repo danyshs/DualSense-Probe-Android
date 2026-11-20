@@ -66,7 +66,7 @@ private fun touchText(touches: List<TouchPoint>): String {
             if (t.isPointer) {
                 stringResource(R.string.touch_pointer, signed(t.x), signed(t.y))
             } else {
-                stringResource(R.string.touch_finger, t.id, (t.x * Limits.TOUCH_X_PX_MAX).toInt(), (t.y * Limits.TOUCH_Y_PX_MAX).toInt())
+                stringResource(R.string.touch_finger, t.id, Math.round(t.x * Limits.TOUCH_X_PX_MAX), Math.round(t.y * Limits.TOUCH_Y_PX_MAX))
             },
         )
     }

@@ -23,6 +23,9 @@ android {
 
     buildFeatures { compose = true }
 
+    // the pad's report fixtures are the single copy: the mapper and writer tests read them too
+    sourceSets["test"].resources.srcDir("../pad/src/test/resources")
+
     lint {
         warningsAsErrors = true
         abortOnError = true

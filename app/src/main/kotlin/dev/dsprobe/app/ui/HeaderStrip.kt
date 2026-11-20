@@ -87,8 +87,15 @@ private const val BATTERY_WIDTH_DP = 128 // fits "Battery raw 15" in 14 sp monos
 @Composable
 private fun batteryText(battery: Battery?): String = when (battery) {
     is Battery.Percent -> stringResource(R.string.battery_percent, battery.percent)
-    is Battery.RawNibble -> stringResource(R.string.battery_raw, battery.nibble)
+    is Battery.RawNibble -> stringResource(R.string.battery_raw, battery.levelNibble, battery.chargingNibble)
     null -> stringResource(R.string.battery_unknown)
+}
+
+@Composable
+private fun headphonesText(headphonesIn: Boolean?): String = when (headphonesIn) {
+    true -> stringResource(R.string.headphones_in)
+    false -> stringResource(R.string.headphones_out)
+    null -> stringResource(R.string.headphones_unknown)
 }
 
 @Composable
@@ -108,9 +115,10 @@ private fun ReducedList(reduced: List<Reduction>) {
 fun HeaderStrip(
     state: RouteState,
     battery: Battery?,
-    directUsbAvailable: Boolean,
+    headphonesIn: Boolean?,
     onSwitch: () -> Unit,
     onBack: () -> Unit,
+    onCrashNow: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val pad = padOf(state)
@@ -123,9 +131,13 @@ fun HeaderStrip(
             if (pad != null) Text(stringResource(R.string.battery_label, batteryText(battery)), Modifier.padding(start = 8.dp).width(BATTERY_WIDTH_DP.dp), style = NumberStyle, textAlign = TextAlign.End, maxLines = 1, softWrap = false)
         }
         Text(padLine(pad), Modifier.fillMaxWidth(), color = DsColors.TextDim)
-        if (state is RouteState.AndroidMode) AndroidBanner(state, reduced, showReduced, directUsbAvailable, onSwitch) { showReduced = !showReduced }
+        if (state is RouteState.AndroidMode) AndroidBanner(state, reduced, showReduced, onSwitch) { showReduced = !showReduced }
         if (state is RouteState.DirectUsb) {
-            Button(onClick = onBack) { Text(stringResource(R.string.back_to_android)) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onBack) { Text(stringResource(R.string.back_to_android)) }
+                if (onCrashNow != null) Button(onClick = onCrashNow) { Text(stringResource(R.string.crash_now)) }
+            }
+            Text(headphonesText(headphonesIn), style = NumberStyle, maxLines = 1, softWrap = false)
             if (state.secondPadIgnored) Text(stringResource(R.string.second_pad_ignored), color = DsColors.Warn)
         }
         stateMessageRes(state)?.let { Text(stringResource(it), Modifier.fillMaxWidth(), color = DsColors.Warn) }
@@ -145,7 +157,6 @@ private fun AndroidBanner(
     state: RouteState.AndroidMode,
     reduced: List<Reduction>,
     expanded: Boolean,
-    directUsbAvailable: Boolean,
     onSwitch: () -> Unit,
     onToggle: () -> Unit,
 ) {
@@ -163,8 +174,7 @@ private fun AndroidBanner(
             if (expanded) ReducedList(reduced)
         }
         if (state.pad.transport == Transport.USB) {
-            Button(onClick = onSwitch, enabled = directUsbAvailable) { Text(stringResource(R.string.switch_to_direct_usb)) }
-            if (!directUsbAvailable) Text(stringResource(R.string.direct_usb_unbuilt), Modifier.fillMaxWidth(), color = DsColors.TextDim)
+            Button(onClick = onSwitch) { Text(stringResource(R.string.switch_to_direct_usb)) }
         }
         state.notice?.let { Text(stringResource(noticeRes(it.kind), it.detail), Modifier.fillMaxWidth(), color = DsColors.Warn) }
     }

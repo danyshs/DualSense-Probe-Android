@@ -29,7 +29,6 @@ fun eventsFor(prev: FindResult, next: FindResult): List<RouteEvent> {
  */
 class RouteController(
     private val host: RouteHost,
-    private val directUsbAvailable: Boolean,
     private val log: (String) -> Unit,
 ) {
     private val mutableState = MutableStateFlow<RouteState>(RouteState.NoPad())
@@ -98,12 +97,5 @@ class RouteController(
 
     fun backToAndroidMode() = post(RouteEvent.BackRequested)
 
-    /** Ignored, with a log line, until the Direct USB route exists. */
-    fun switchToDirectUsb() {
-        if (!directUsbAvailable) {
-            log("switch to Direct USB asked for, but that route is not built")
-            return
-        }
-        post(RouteEvent.SwitchRequested)
-    }
+    fun switchToDirectUsb() = post(RouteEvent.SwitchRequested)
 }

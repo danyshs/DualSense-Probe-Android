@@ -43,15 +43,15 @@ private fun rememberLiveUi(live: LiveState): LiveUi {
 fun LiveScreen(
     state: RouteState,
     live: LiveState,
-    directUsbAvailable: Boolean,
     onSwitch: () -> Unit,
     onBack: () -> Unit,
+    onCrashNow: (() -> Unit)?,
 ) {
     val ui = rememberLiveUi(live)
     val s = ui.frame.state
     val reasons = reducedOf(state).associate { it.feature to it.reasonRes }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        HeaderStrip(state, s.battery, directUsbAvailable, onSwitch, onBack)
+        HeaderStrip(state, s.battery, s.headphonesIn, onSwitch, onBack, onCrashNow)
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 TriggerBar(stringResource(R.string.label_l2), s.l2, ui.feel.l2Peak)
