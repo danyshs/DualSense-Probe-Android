@@ -175,6 +175,11 @@ class DirectUsbRoute(
     override fun send(req: OutputRequest): ApiAnswer {
         val taken = when (req) {
             is OutputRequest.Rumble -> writer.setRumble(req.left, req.right, req.durationMs)
+            is OutputRequest.RumblePattern -> writer.playRumble(req.steps)
+            is OutputRequest.SetRumbleMode -> {
+                writer.setRumbleMode(req.mode)
+                !released.get()
+            }
             is OutputRequest.Lightbar -> writer.change(OutputField.LIGHTBAR) { it.copy(lightbar = req.rgb) }
             is OutputRequest.PlayerLeds -> {
                 require(req.mask in 0..Limits.PLAYER_LED_MASK_MAX) { "player LED mask ${req.mask}" }
@@ -186,6 +191,10 @@ class DirectUsbRoute(
         }
         return if (taken) ApiAnswer.Ok else ApiAnswer.Failed("the pad is being handed back")
     }
+
+    override val rumbleMode: RumbleMode get() = writer.rumbleMode
+
+    override fun rumbleSent(): MotorLevels = writer.rumbleSent
 
     override fun stop() = release()
 }

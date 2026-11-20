@@ -11,6 +11,13 @@ object AppLimits {
 
     const val ANSWERS_POLL_INTERVAL_MS = 1_000L
     const val PLAYER_LED_COUNT = 5
+    const val RUMBLE_STEPS_MAX = 512 // 5 s of 10 ms steps, the writer's minimum gap
+    const val RUMBLE_PATTERN_DURATION_MS_MIN = 1_000
+    const val RUMBLE_PULSE_RATE_HZ_MIN = 1
+    const val RUMBLE_PULSE_RATE_HZ_MAX = 10
+    const val RUMBLE_PULSE_RATE_HZ_DEFAULT = 4
+    const val RUMBLE_INTENSITY_DEFAULT = 200 // a guess: strong but not full, so full is a visible step up
+    const val RUMBLE_TRACE_SAMPLES_MAX = 120
     const val COLOUR_SEND_INTERVAL_MS_MIN = 33L // a guess: about 30 colour updates a second; tune on the phone
 
     const val READ_TIMEOUT_MS = 100

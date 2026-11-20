@@ -2,6 +2,8 @@ package dev.dsprobe.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,13 +12,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -41,9 +41,6 @@ import dev.dsprobe.app.ui.theme.DsColors
 import dev.dsprobe.app.ui.theme.NumberStyle
 import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.MuteLed
-import kotlin.math.roundToInt
-
-private const val MS_PER_SECOND = 1000f
 
 @Composable
 private fun Section(titleRes: Int, content: @Composable () -> Unit) {
@@ -82,27 +79,7 @@ private fun AnswerCard(shown: OutputsShown, route: Route, onChanged: (Boolean) -
     }
 }
 
-@Composable
-private fun RumbleSection(enabled: Boolean, shown: OutputsShown, outputs: OutputController) {
-    var left by remember { mutableFloatStateOf(0f) }
-    var right by remember { mutableFloatStateOf(0f) }
-    val send = { outputs.setRumble(left.roundToInt(), right.roundToInt()) }
-    Text(stringResource(R.string.label_rumble_left))
-    Slider(
-        left, { left = it; send() }, enabled = enabled, valueRange = 0f..Limits.MOTOR_STRENGTH_MAX.toFloat(),
-        onValueChangeFinished = { left = 0f; send() },
-    )
-    Text(stringResource(R.string.label_rumble_right))
-    Slider(
-        right, { right = it; send() }, enabled = enabled, valueRange = 0f..Limits.MOTOR_STRENGTH_MAX.toFloat(),
-        onValueChangeFinished = { right = 0f; send() },
-    )
-    Text(
-        stringResource(R.string.rumble_status, shown.rumbleLeft, shown.rumbleRight, shown.rumbleRemainingMs / MS_PER_SECOND),
-        style = NumberStyle, maxLines = 1, softWrap = false,
-    )
-}
-
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PlayerLedSection(enabled: Boolean, mask: Int, outputs: OutputController) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -114,14 +91,19 @@ private fun PlayerLedSection(enabled: Boolean, mask: Int, outputs: OutputControl
             }
         }
     }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        val each = Modifier.weight(1f)
-        OutlinedButton({ outputs.setPlayerLeds(0) }, each, enabled = enabled) { Text(stringResource(R.string.leds_off)) }
-        OutlinedButton({ outputs.setPlayerLeds(Limits.PLAYER_LED_MASK_MAX) }, each, enabled = enabled) { Text(stringResource(R.string.leds_all)) }
+    // buttons keep their natural width and the row wraps, so no label ever breaks
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        LedPreset(R.string.leds_off, enabled) { outputs.setPlayerLeds(0) }
+        LedPreset(R.string.leds_all, enabled) { outputs.setPlayerLeds(Limits.PLAYER_LED_MASK_MAX) }
         for (count in 1 until AppLimits.PLAYER_LED_COUNT) {
-            OutlinedButton({ outputs.setPlayerLeds((1 shl count) - 1) }, each, enabled = enabled) { Text(count.toString()) }
+            OutlinedButton({ outputs.setPlayerLeds((1 shl count) - 1) }, enabled = enabled) { Text(count.toString(), maxLines = 1, softWrap = false) }
         }
     }
+}
+
+@Composable
+private fun LedPreset(labelRes: Int, enabled: Boolean, onClick: () -> Unit) {
+    OutlinedButton(onClick, enabled = enabled) { Text(stringResource(labelRes), maxLines = 1, softWrap = false) }
 }
 
 @Composable

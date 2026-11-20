@@ -2,11 +2,14 @@ package dev.dsprobe.app.output
 
 import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.route.ApiAnswer
+import dev.dsprobe.app.route.MotorLevels
 import dev.dsprobe.app.route.OutputRequest
 import dev.dsprobe.app.route.PadRoute
 import dev.dsprobe.app.route.Route
+import dev.dsprobe.app.route.totalDurationMs
 import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.MuteLed
+import dev.dsprobe.pad.RumbleMode
 import dev.dsprobe.pad.Rgb
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 /** The route outputs go to right now. */
 data class LiveRoute(val route: PadRoute, val kind: Route)
 
-enum class AskKind { LIGHTBAR, PLAYER_LEDS, MUTE_LED }
+enum class AskKind { LIGHTBAR, PLAYER_LEDS, MUTE_LED, RUMBLE }
 
 /** What Android answered to a light request it may have silently ignored; the user is asked whether anything changed. */
 data class PendingAsk(val kind: AskKind, val sent: String, val answer: ApiAnswer)
@@ -30,10 +33,21 @@ data class OutputsShown(
     val rumbleRemainingMs: Long,
     val lastAnswer: ApiAnswer?,
     val ask: PendingAsk?,
+    /** The flags the route rumbles with; null where the route has no modes (Android). */
+    val rumbleMode: RumbleMode? = null,
+    /** The motor values the route reports sending, newest last, for the two-trace strip. */
+    val rumbleTrace: List<MotorLevels> = emptyList(),
 ) {
     companion object {
         val IDLE = OutputsShown(Rgb(0u, 0u, 0u), 0, MuteLed.OFF, 0, 0, 0L, null, null)
     }
+}
+
+/** [trace] with [level] added: only while something is moving, bounded at the limit. */
+internal fun traceWith(trace: List<MotorLevels>, level: MotorLevels): List<MotorLevels> {
+    if (level == MotorLevels.OFF && (trace.isEmpty() || trace.last() == MotorLevels.OFF)) return trace
+    val longer = trace + level
+    return if (longer.size > AppLimits.RUMBLE_TRACE_SAMPLES_MAX) longer.drop(longer.size - AppLimits.RUMBLE_TRACE_SAMPLES_MAX) else longer
 }
 
 private fun describe(answer: ApiAnswer): String = when (answer) {
@@ -79,6 +93,38 @@ class OutputController(
 
     private fun remainingMs(now: Long): Long = (rumbleEndsAtMs - now).coerceAtLeast(0L)
 
+    /** Plays pattern [id] for [durationMs], each motor up to its ceiling; it ends by itself inside the route. */
+    fun playPattern(id: PatternId, leftMax: Int, rightMax: Int, durationMs: Int, rateHz: Int) {
+        val steps = buildPattern(id, leftMax.coerceIn(0, Limits.MOTOR_STRENGTH_MAX), rightMax.coerceIn(0, Limits.MOTOR_STRENGTH_MAX), durationMs, rateHz)
+        val totalMs = totalDurationMs(steps)
+        val answer = send(OutputRequest.RumblePattern(steps))
+        rumbleEndsAtMs = nowMs() + totalMs
+        val ask = askFor(AskKind.RUMBLE, "rumble ${id.name.lowercase().replace('_', ' ')}", answer)
+        mutable.value = mutable.value.copy(
+            rumbleLeft = steps[0].left, rumbleRight = steps[0].right, rumbleRemainingMs = totalMs.toLong(), lastAnswer = answer, ask = ask,
+        )
+    }
+
+    /** Picks the Direct USB rumble flags. A rumble running in the old flags is stopped first. */
+    fun setRumbleMode(mode: RumbleMode) {
+        if (remainingMs(nowMs()) > 0L) setRumble(0, 0)
+        val answer = send(OutputRequest.SetRumbleMode(mode))
+        mutable.value = mutable.value.copy(rumbleMode = if (answer == ApiAnswer.Ok) mode else mutable.value.rumbleMode, lastAnswer = answer)
+    }
+
+    // what the route says it sent, once per frame; a pattern shows its moving values here
+    private fun sampleRumble(now: Long) {
+        val route = live()?.route ?: return
+        val levels = route.rumbleSent()
+        val current = mutable.value
+        var next = current.copy(rumbleMode = route.rumbleMode)
+        if (levels != null) {
+            next = next.copy(rumbleTrace = traceWith(current.rumbleTrace, levels))
+            if (rumbleEndsAtMs > now) next = next.copy(rumbleLeft = levels.left, rumbleRight = levels.right)
+        }
+        if (next != current) mutable.value = next
+    }
+
     /** The colour to show now; sent at once when the interval allows, else held and sent by [tick]. */
     fun setLightbar(rgb: Rgb) {
         heldColour = rgb
@@ -92,6 +138,7 @@ class OutputController(
     fun tick() {
         sendHeldColour(force = false)
         val now = nowMs()
+        sampleRumble(now)
         val remaining = remainingMs(now)
         val current = mutable.value
         if (current.rumbleRemainingMs == remaining) return

@@ -13,6 +13,7 @@ import android.hardware.lights.LightsManager.LightsSession
 import android.os.CombinedVibration
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.util.Log
@@ -37,6 +38,7 @@ private fun logWarn(message: String) {
     Log.w(TAG, message)
 }
 private const val LATE_DROP_COUNT_MAX = 1_000_000
+private const val NO_REPEAT = -1 // createWaveform: play once
 
 /** Next value of the late-event counter: counts up, stops at the limit so it can never wrap. */
 internal fun nextLateDropCount(current: Int): Int {
@@ -68,6 +70,7 @@ class AndroidRoute(
     private val context: Context,
     private val live: LiveState,
     private val feed: EventFeed,
+    private val nowMs: () -> Long = SystemClock::uptimeMillis,
 ) : PadRoute {
     private val handler = Handler(Looper.getMainLooper())
     private var pad: FoundPad? = null
@@ -77,6 +80,8 @@ class AndroidRoute(
     private var lightsRequested = false
     private var sensorManager: SensorManager? = null
     private var touchPointersSeen = 0
+    private var playing: List<RumbleStep>? = null
+    private var playStartMs = 0L
     private val mutableAnswers = MutableStateFlow<AndroidAnswers?>(null)
 
     /** What Android says it offers for the pad, asked again on every start and by [requery]; null while the route is not live. */
@@ -184,6 +189,7 @@ class AndroidRoute(
         sensorManager?.unregisterListener(sensorListener)
         sensorManager = null
         device?.vibratorManager?.cancel()
+        playing = null
         closeIfRequested(lightsRequested) { lightsSession?.close() }?.let { Log.w(TAG, "lights session close failed", it) }
         lightsSession = null
         lightsRequested = false
@@ -251,6 +257,8 @@ class AndroidRoute(
         return try {
             when (req) {
                 is OutputRequest.Rumble -> sendRumble(current, req)
+                is OutputRequest.RumblePattern -> sendPattern(current, req)
+                is OutputRequest.SetRumbleMode -> ApiAnswer.Failed("Android has no rumble modes")
                 is OutputRequest.Lightbar -> sendLightbar(current, req)
                 is OutputRequest.PlayerLeds -> sendPlayerLeds(current, req)
                 is OutputRequest.SetMuteLed -> sendMuteLed(current, req)
@@ -269,12 +277,47 @@ class AndroidRoute(
         val plan = rumblePlan(manager.vibratorIds.toList(), req.left.toInt(), req.right.toInt())
         if (plan.isEmpty()) {
             manager.cancel()
+            playing = null
             return ApiAnswer.Ok
         }
         val effect = CombinedVibration.startParallel()
         for ((id, strength) in plan) effect.addVibrator(id, VibrationEffect.createOneShot(req.durationMs.toLong(), strength))
         manager.vibrate(effect.combine())
+        notePlaying(listOf(RumbleStep(req.left.toInt(), req.right.toInt(), req.durationMs)))
         return ApiAnswer.Ok
+    }
+
+    /** One waveform per vibrator id Android reports, played together; Android ends it by itself. */
+    private fun sendPattern(from: InputDevice, req: OutputRequest.RumblePattern): ApiAnswer {
+        val totalMs = totalDurationMs(req.steps)
+        require(totalMs in 1..Limits.RUMBLE_DURATION_MS_MAX) { "rumble pattern $totalMs ms" }
+        val manager: VibratorManager = from.vibratorManager
+        val lanes = waveformsFor(manager.vibratorIds.toList(), req.steps)
+        manager.cancel() // the new pattern replaces whatever was playing, on every motor
+        if (lanes.isEmpty()) {
+            playing = null
+            return ApiAnswer.Ok
+        }
+        val effect = CombinedVibration.startParallel()
+        for (lane in lanes) effect.addVibrator(lane.vibratorId, VibrationEffect.createWaveform(lane.timingsMs, lane.amplitudes, NO_REPEAT))
+        manager.vibrate(effect.combine())
+        notePlaying(req.steps)
+        return ApiAnswer.Ok
+    }
+
+    private fun notePlaying(steps: List<RumbleStep>) {
+        playing = steps
+        playStartMs = nowMs()
+    }
+
+    override fun rumbleSent(): MotorLevels {
+        val steps = playing ?: return MotorLevels.OFF
+        val index = stepIndexAt(steps, nowMs() - playStartMs)
+        if (index == null) {
+            playing = null
+            return MotorLevels.OFF
+        }
+        return MotorLevels(steps[index].left, steps[index].right)
     }
 
     private fun sendLightbar(from: InputDevice, req: OutputRequest.Lightbar): ApiAnswer {

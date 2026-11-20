@@ -21,7 +21,7 @@ fun interface ReportSink {
 private sealed interface Plan {
     data object Done : Plan
     data class Wait(val ms: Long) : Plan
-    class Send(val report: ByteArray, val fields: Set<OutputField>, val isFinal: Boolean) : Plan
+    class Send(val report: ByteArray, val fields: Set<OutputField>, val isFinal: Boolean, val rumble: MotorLevels?) : Plan
 }
 
 /**
@@ -45,6 +45,9 @@ class OutputWriter(
     private val touched: MutableSet<OutputField> = EnumSet.noneOf(OutputField::class.java)
     private var lastSendMs: Long? = null
     private var rumbleDeadlineMs: Long? = null
+    private var rumbleSteps: List<RumbleStep>? = null
+    private var rumbleStartMs = 0L
+    private var rumbleStepIndex = -1
     private var closing = false
     private var finalPlanned = false
     private var failuresInARow = 0
@@ -67,6 +70,14 @@ class OutputWriter(
     @Volatile
     var droppedAfterCloseCount = 0L
         private set
+
+    /** The motor values in the last rumble-carrying report the pad took: what it was told, not what it felt. */
+    @Volatile
+    var rumbleSent = MotorLevels.OFF
+        private set
+
+    /** The rumble flags in use now. */
+    val rumbleMode: RumbleMode get() = lock.withLock { state.rumbleMode }
 
     /** Edits the one state and marks [field] dirty. False (and counted) once the release has begun. */
     fun change(field: OutputField, edit: (OutputState) -> OutputState): Boolean = lock.withLock {
@@ -96,11 +107,36 @@ class OutputWriter(
             droppedAfterCloseCount += 1
             return@withLock false
         }
+        rumbleSteps = null
         state = state.copy(rumbleLeft = left, rumbleRight = right)
         val stopped = left.toInt() == 0 && right.toInt() == 0
         rumbleDeadlineMs = if (stopped) null else nowMs() + durationMs
         dirty.add(OutputField.RUMBLE)
         touched.add(OutputField.RUMBLE)
+        poke()
+        true
+    }
+
+    /**
+     * A rumble pattern, played by the writer itself: it moves to each step on time and zeroes both
+     * motors when the last one ends, so a stalled UI can't keep the pad rumbling. The whole pattern
+     * must fit inside [Limits.RUMBLE_DURATION_MS_MAX]. False (and counted) once the release has begun.
+     */
+    fun playRumble(steps: List<RumbleStep>): Boolean = lock.withLock {
+        require(steps.isNotEmpty()) { "rumble pattern has no steps" }
+        val totalMs = totalDurationMs(steps)
+        require(totalMs <= Limits.RUMBLE_DURATION_MS_MAX) { "rumble pattern $totalMs ms" }
+        if (closing) {
+            droppedAfterCloseCount += 1
+            return@withLock false
+        }
+        val now = nowMs()
+        rumbleSteps = steps
+        rumbleStartMs = now
+        rumbleStepIndex = -1
+        rumbleDeadlineMs = now + totalMs
+        touched.add(OutputField.RUMBLE)
+        advanceRumble(now)
         poke()
         true
     }
@@ -133,13 +169,32 @@ class OutputWriter(
 
     /** What to do at [now], decided under the lock; sending happens outside it. */
     private fun plan(now: Long): Plan {
-        if (halted) return Plan.Done
+        // nothing is sent after the final report, not even a step that came due since
+        if (halted || finalPlanned) return Plan.Done
         expireRumble(now)
+        advanceRumble(now)
         val next = planSends(now)
-        val deadline = rumbleDeadlineMs
-        // never sleep past the moment the rumble has to stop
-        if (next is Plan.Wait && deadline != null) return Plan.Wait(minOf(next.ms, (deadline - now).coerceAtLeast(1L)))
+        val wakeAt = nextRumbleWakeMs()
+        // never sleep past the moment the rumble steps on or has to stop
+        if (next is Plan.Wait && wakeAt != null) return Plan.Wait(minOf(next.ms, (wakeAt - now).coerceAtLeast(1L)))
         return next
+    }
+
+    private fun nextRumbleWakeMs(): Long? {
+        val deadline = rumbleDeadlineMs
+        val steps = rumbleSteps
+        if (steps == null || rumbleStepIndex < 0) return deadline
+        val stepEnd = rumbleStartMs + stepEndMs(steps, rumbleStepIndex)
+        return if (deadline == null) stepEnd else minOf(deadline, stepEnd)
+    }
+
+    private fun advanceRumble(now: Long) {
+        val steps = rumbleSteps ?: return
+        val index = stepIndexAt(steps, now - rumbleStartMs) ?: return
+        if (index == rumbleStepIndex) return
+        rumbleStepIndex = index
+        state = state.copy(rumbleLeft = steps[index].left.toUByte(), rumbleRight = steps[index].right.toUByte())
+        dirty.add(OutputField.RUMBLE)
     }
 
     private fun expireRumble(now: Long) {
@@ -147,6 +202,8 @@ class OutputWriter(
         if (now < deadline) return
         state = state.copy(rumbleLeft = 0u, rumbleRight = 0u)
         rumbleDeadlineMs = null
+        rumbleSteps = null
+        rumbleStepIndex = -1
         dirty.add(OutputField.RUMBLE)
     }
 
@@ -158,19 +215,22 @@ class OutputWriter(
             lastSendMs = now
             if (dirty.isNotEmpty()) return sendDirty()
             finalPlanned = true
-            return Plan.Send(allOffReport(), RELEASE_FIELDS, isFinal = true)
+            return Plan.Send(allOffReport(), RELEASE_FIELDS, isFinal = true, rumble = MotorLevels.OFF)
         }
         if (closing) return Plan.Done
         if (touched.isEmpty()) return Plan.Wait(Limits.OUTPUT_RESEND_INTERVAL_MS.toLong())
         if (sinceSendMs < Limits.OUTPUT_RESEND_INTERVAL_MS) return Plan.Wait(Limits.OUTPUT_RESEND_INTERVAL_MS - sinceSendMs)
         lastSendMs = now
-        return Plan.Send(buildUsbOutput(state, touched), EnumSet.copyOf(touched), isFinal = false)
+        return Plan.Send(buildUsbOutput(state, touched), EnumSet.copyOf(touched), isFinal = false, rumble = rumbleIn(touched))
     }
+
+    private fun rumbleIn(fields: Set<OutputField>): MotorLevels? =
+        if (OutputField.RUMBLE in fields) MotorLevels(state.rumbleLeft.toInt(), state.rumbleRight.toInt()) else null
 
     private fun sendDirty(): Plan {
         val fields: Set<OutputField> = EnumSet.copyOf(dirty)
         dirty.clear()
-        return Plan.Send(buildUsbOutput(state, fields), fields, isFinal = false)
+        return Plan.Send(buildUsbOutput(state, fields), fields, isFinal = false, rumble = rumbleIn(fields))
     }
 
     private fun deliver(job: Plan.Send) {
@@ -180,6 +240,7 @@ class OutputWriter(
             if (ok) {
                 sentCount += 1
                 failuresInARow = 0
+                job.rumble?.let { rumbleSent = it }
                 return
             }
             failedCount += 1
