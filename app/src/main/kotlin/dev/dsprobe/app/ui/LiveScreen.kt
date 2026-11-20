@@ -8,8 +8,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -24,7 +29,6 @@ import dev.dsprobe.app.route.AndroidAnswers
 import dev.dsprobe.app.route.Feature
 import dev.dsprobe.app.route.Reduction
 import dev.dsprobe.app.route.RouteState
-import dev.dsprobe.app.ui.theme.DsColors
 import androidx.compose.runtime.withFrameMillis
 
 /** The newest frame and its effects, advanced once per display frame for as long as the screen is composed. */
@@ -43,6 +47,20 @@ fun rememberLiveUi(live: LiveState): LiveUi {
     return ui
 }
 
+/** One of the three doors on the home screen: a whole card is the tap target. */
+@Composable
+private fun EntryCard(titleRes: Int, bodyRes: Int, onClick: () -> Unit) {
+    Card(
+        Modifier.fillMaxWidth().heightIn(min = TOUCH_TARGET_DP.dp).clickable(role = Role.Button, onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(titleRes), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(bodyRes), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
 @Composable
 fun LiveScreen(
     state: RouteState,
@@ -58,10 +76,9 @@ fun LiveScreen(
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         HeaderStrip(state, s.battery, s.headphonesIn, locked, answers, actions.onRefreshAnswers, actions.onSwitch, actions.onBack, actions.onCrashNow)
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = actions.onOpenOutputs) { Text(stringResource(R.string.open_outputs)) }
-                Button(onClick = actions.onOpenDebug) { Text(stringResource(R.string.open_debug)) }
-            }
+            EntryCard(R.string.open_outputs, R.string.live_outputs_body) { actions.onOpen(Screen.OUTPUTS) }
+            EntryCard(R.string.live_guided_title, R.string.live_guided_body) { actions.onOpen(Screen.GUIDED) }
+            EntryCard(R.string.live_debug_title, R.string.live_debug_body) { actions.onOpen(Screen.DEBUG) }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 TriggerBar(stringResource(R.string.label_l2), s.l2, ui.feel.l2Peak)
                 ControllerDrawing(ui, reasons.keys, shown, Modifier.weight(1f))

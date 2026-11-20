@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.R
 import dev.dsprobe.app.route.MotorLevels
-import dev.dsprobe.app.ui.theme.DsColors
+import dev.dsprobe.app.ui.theme.ChartColors
 import dev.dsprobe.pad.Limits
 
 private fun DrawScope.motorLine(history: List<MotorLevels>, color: Color, pick: (MotorLevels) -> Int) {
@@ -33,13 +33,14 @@ private fun DrawScope.motorLine(history: List<MotorLevels>, color: Color, pick: 
 /** The left and right values the route reports sending, newest at the right; 0 at the bottom, 255 at the top. */
 @Composable
 fun RumbleTraces(history: List<MotorLevels>, modifier: Modifier = Modifier) {
+    val c = drawColors()
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(stringResource(R.string.rumble_trace_title), color = DsColors.TextDim)
+        Text(stringResource(R.string.rumble_trace_title), color = c.textDim)
         Canvas(Modifier.fillMaxWidth().height(72.dp)) {
-            drawRect(DsColors.SurfaceHigh, Offset.Zero, size)
-            motorLine(history, DsColors.AxisX) { it.left }
-            motorLine(history, DsColors.AxisY) { it.right }
+            drawRect(c.surfaceHigh, Offset.Zero, size)
+            motorLine(history, ChartColors.AxisX) { it.left }
+            motorLine(history, ChartColors.AxisY) { it.right }
         }
-        Text(stringResource(R.string.rumble_trace_key), color = DsColors.TextDim, maxLines = 1, softWrap = false)
+        Text(stringResource(R.string.rumble_trace_key), color = c.textDim, maxLines = 1, softWrap = false)
     }
 }

@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import dev.dsprobe.app.output.OutputsShown
 import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.route.Feature
-import dev.dsprobe.app.ui.theme.DsColors
+import dev.dsprobe.app.ui.theme.ChartColors
 import dev.dsprobe.pad.Button
 import dev.dsprobe.pad.Dpad
 import dev.dsprobe.pad.MuteLed
@@ -47,7 +47,7 @@ private fun DrawScope.bodyPath(): Path {
     }
 }
 
-private fun DrawScope.drawFaceButtons(ui: LiveUi) {
+private fun DrawScope.drawFaceButtons(c: DrawColors, ui: LiveUi) {
     val unit = size.height * 0.12f
     val radius = size.height * 0.075f
     val center = at(FACE_CENTER)
@@ -55,10 +55,10 @@ private fun DrawScope.drawFaceButtons(ui: LiveUi) {
         Button.TRIANGLE to Offset(0f, -unit), Button.CROSS to Offset(0f, unit),
         Button.SQUARE to Offset(-unit, 0f), Button.CIRCLE to Offset(unit, 0f),
     )
-    for ((button, delta) in spots) glowCircle(center + delta, radius, buttonGlow(ui, button))
+    for ((button, delta) in spots) glowCircle(c, center + delta, radius, buttonGlow(ui, button))
 }
 
-private fun DrawScope.drawDpad(ui: LiveUi) {
+private fun DrawScope.drawDpad(c: DrawColors, ui: LiveUi) {
     val center = at(DPAD_CENTER)
     val arm = size.height * 0.07f
     val thick = arm * 1.1f
@@ -70,35 +70,35 @@ private fun DrawScope.drawDpad(ui: LiveUi) {
     )
     for ((dir, rect) in arms) {
         val alpha = glowAlpha(dir in armsOf(ui.frame.state.dpad), ui.feel.armActiveMs[dir], ui.feel.nowMs)
-        glowRect(center + rect.first, rect.second, alpha)
+        glowRect(c, center + rect.first, rect.second, alpha)
     }
 }
 
-private fun DrawScope.drawBumpers(ui: LiveUi) {
+private fun DrawScope.drawBumpers(c: DrawColors, ui: LiveUi) {
     val h = size.height
     val w = size.width
     for ((button, left) in listOf(Button.L1 to 0.10f, Button.R1 to 0.74f)) {
-        glowRect(Offset(left * w, 0.13f * h), Size(0.16f * w, 0.05f * h), buttonGlow(ui, button))
+        glowRect(c, Offset(left * w, 0.13f * h), Size(0.16f * w, 0.05f * h), buttonGlow(ui, button))
     }
     for ((button, left) in listOf(Button.L2 to 0.10f, Button.R2 to 0.74f)) {
-        glowRect(Offset(left * w, 0.05f * h), Size(0.16f * w, 0.05f * h), buttonGlow(ui, button))
+        glowRect(c, Offset(left * w, 0.05f * h), Size(0.16f * w, 0.05f * h), buttonGlow(ui, button))
     }
 }
 
-private fun DrawScope.drawCentre(ui: LiveUi, locked: Set<Feature>) {
+private fun DrawScope.drawCentre(c: DrawColors, ui: LiveUi, locked: Set<Feature>) {
     val w = size.width
     val h = size.height
-    glowRect(Offset(0.37f * w, 0.21f * h), Size(0.26f * w, 0.20f * h), buttonGlow(ui, Button.TOUCHPAD_CLICK))
-    glowRect(Offset(0.28f * w, 0.24f * h), Size(0.05f * w, 0.04f * h), buttonGlow(ui, Button.CREATE))
-    glowRect(Offset(0.67f * w, 0.24f * h), Size(0.05f * w, 0.04f * h), buttonGlow(ui, Button.OPTIONS))
-    glowCircle(at(Offset(0.5f, 0.52f)), h * 0.035f, buttonGlow(ui, Button.PS))
+    glowRect(c, Offset(0.37f * w, 0.21f * h), Size(0.26f * w, 0.20f * h), buttonGlow(ui, Button.TOUCHPAD_CLICK))
+    glowRect(c, Offset(0.28f * w, 0.24f * h), Size(0.05f * w, 0.04f * h), buttonGlow(ui, Button.CREATE))
+    glowRect(c, Offset(0.67f * w, 0.24f * h), Size(0.05f * w, 0.04f * h), buttonGlow(ui, Button.OPTIONS))
+    glowCircle(c, at(Offset(0.5f, 0.52f)), h * 0.035f, buttonGlow(ui, Button.PS))
     val mute = Offset(0.47f * w, 0.60f * h)
-    glowRect(mute, Size(0.06f * w, 0.035f * h), buttonGlow(ui, Button.MUTE))
-    if (Feature.MUTE_BUTTON in locked) drawLock(Offset(0.5f * w, 0.62f * h), h * 0.06f)
+    glowRect(c, mute, Size(0.06f * w, 0.035f * h), buttonGlow(ui, Button.MUTE))
+    if (Feature.MUTE_BUTTON in locked) drawLock(c, Offset(0.5f * w, 0.62f * h), h * 0.06f)
 }
 
 // the lightbar is a thin bar down each side of the touchpad; the player LEDs sit under it
-private fun DrawScope.drawLightsAndLeds(ui: LiveUi, shown: OutputsShown) {
+private fun DrawScope.drawLightsAndLeds(c: DrawColors, ui: LiveUi, shown: OutputsShown) {
     val w = size.width
     val h = size.height
     val bar = Color(shown.lightbar.r.toInt(), shown.lightbar.g.toInt(), shown.lightbar.b.toInt())
@@ -106,13 +106,13 @@ private fun DrawScope.drawLightsAndLeds(ui: LiveUi, shown: OutputsShown) {
         val topLeft = Offset(left * w, 0.21f * h)
         val barSize = Size(0.012f * w, 0.20f * h)
         drawRect(bar, topLeft, barSize)
-        drawRect(DsColors.Outline, topLeft, barSize, style = Stroke(width = 1.5f))
+        drawRect(c.outline, topLeft, barSize, style = Stroke(width = 1.5f))
     }
     for (i in 0 until AppLimits.PLAYER_LED_COUNT) {
         val on = shown.playerLeds and (1 shl i) != 0
         val spot = Offset((0.42f + 0.04f * i) * w, 0.445f * h)
-        drawCircle(if (on) Color.White else DsColors.SurfaceHigh, h * 0.014f, spot)
-        drawCircle(DsColors.Outline, h * 0.014f, spot, style = Stroke(width = 1.5f))
+        drawCircle(if (on) Color.White else c.surfaceHigh, h * 0.014f, spot)
+        drawCircle(c.outline, h * 0.014f, spot, style = Stroke(width = 1.5f))
     }
     val pulse = 0.5f + 0.5f * sin(ui.feel.nowMs / MUTE_PULSE_MS)
     val muteAlpha = when (shown.muteLed) {
@@ -121,12 +121,12 @@ private fun DrawScope.drawLightsAndLeds(ui: LiveUi, shown: OutputsShown) {
         MuteLed.PULSE -> pulse
     }
     val mute = Offset(0.56f * w, 0.617f * h)
-    drawCircle(DsColors.SurfaceHigh, h * 0.016f, mute)
-    drawCircle(DsColors.Warn.copy(alpha = muteAlpha), h * 0.016f, mute)
-    drawCircle(DsColors.Outline, h * 0.016f, mute, style = Stroke(width = 1.5f))
+    drawCircle(c.surfaceHigh, h * 0.016f, mute)
+    drawCircle(c.warn.copy(alpha = muteAlpha), h * 0.016f, mute)
+    drawCircle(c.outline, h * 0.016f, mute, style = Stroke(width = 1.5f))
 }
 
-private fun DrawScope.drawSticks(ui: LiveUi) {
+private fun DrawScope.drawSticks(c: DrawColors, ui: LiveUi) {
     val s = ui.frame.state
     val radius = size.height * 0.11f
     val travel = radius * 0.55f
@@ -136,8 +136,8 @@ private fun DrawScope.drawSticks(ui: LiveUi) {
     )
     for ((spot, button, value) in sticks) {
         val center = at(spot)
-        glowCircle(center, radius, buttonGlow(ui, button))
-        drawCircle(DsColors.Accent, radius * 0.35f, center + value * travel)
+        glowCircle(c, center, radius, buttonGlow(ui, button))
+        drawCircle(c.accent, radius * 0.35f, center + value * travel)
     }
 }
 
@@ -147,6 +147,7 @@ fun buttonGlow(ui: LiveUi, button: Button): Float =
 
 @Composable
 fun ControllerDrawing(ui: LiveUi, locked: Set<Feature>, shown: OutputsShown, modifier: Modifier = Modifier) {
+    val c = drawColors()
     val tilt = tiltOf(ui.frame.state.accel)
     Canvas(modifier.aspectRatio(DRAWING_ASPECT)) {
         withTransform({
@@ -155,14 +156,14 @@ fun ControllerDrawing(ui: LiveUi, locked: Set<Feature>, shown: OutputsShown, mod
                 translate(0f, tilt.pitchDegrees * TILT_PITCH_PX_PER_DEGREE)
             }
         }) {
-            drawPath(bodyPath(), DsColors.Surface)
-            drawPath(bodyPath(), DsColors.Outline, style = Stroke(width = 3f))
-            drawBumpers(ui)
-            drawDpad(ui)
-            drawFaceButtons(ui)
-            drawCentre(ui, locked)
-            drawLightsAndLeds(ui, shown)
-            drawSticks(ui)
+            drawPath(bodyPath(), c.surface)
+            drawPath(bodyPath(), c.outline, style = Stroke(width = 3f))
+            drawBumpers(c, ui)
+            drawDpad(c, ui)
+            drawFaceButtons(c, ui)
+            drawCentre(c, ui, locked)
+            drawLightsAndLeds(c, ui, shown)
+            drawSticks(c, ui)
         }
     }
 }

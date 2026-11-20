@@ -17,7 +17,7 @@ import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.R
 import dev.dsprobe.app.live.Motion
 import dev.dsprobe.app.live.MotionUnit
-import dev.dsprobe.app.ui.theme.DsColors
+import dev.dsprobe.app.ui.theme.ChartColors
 import dev.dsprobe.app.ui.theme.NumberStyle
 
 private const val GYRO_SCALE_FLOOR = 1f // rad/s
@@ -37,21 +37,22 @@ private fun DrawScope.trace(history: List<Motion>, scale: Float, color: Color, p
 /** Three axes of one sensor as rolling lines, newest at the right, auto-scaled. */
 @Composable
 fun MotionTrace(title: String, history: List<Motion>, scaleFloor: Float, modifier: Modifier = Modifier) {
+    val c = drawColors()
     val scale = plotScale(history, scaleFloor)
     val latest = history.lastOrNull()
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(title, color = DsColors.TextDim)
+        Text(title, color = c.textDim)
         Canvas(Modifier.fillMaxWidth().height(72.dp)) {
-            drawRect(DsColors.SurfaceHigh, Offset.Zero, size)
-            trace(history, scale, DsColors.AxisX) { it.x }
-            trace(history, scale, DsColors.AxisY) { it.y }
-            trace(history, scale, DsColors.AxisZ) { it.z }
+            drawRect(c.surfaceHigh, Offset.Zero, size)
+            trace(history, scale, ChartColors.AxisX) { it.x }
+            trace(history, scale, ChartColors.AxisY) { it.y }
+            trace(history, scale, ChartColors.AxisZ) { it.z }
         }
         if (latest != null) {
             Text(stringResource(R.string.motion_values, signed(latest.x), signed(latest.y), signed(latest.z)), style = NumberStyle, maxLines = 1, softWrap = false)
-            if (latest.unit == MotionUnit.RAW_COUNTS) Text(stringResource(R.string.label_motion_raw), color = DsColors.TextDim)
+            if (latest.unit == MotionUnit.RAW_COUNTS) Text(stringResource(R.string.label_motion_raw), color = c.textDim)
         } else {
-            Text(stringResource(R.string.motion_none), color = DsColors.TextDim)
+            Text(stringResource(R.string.motion_none), color = c.textDim)
         }
     }
 }

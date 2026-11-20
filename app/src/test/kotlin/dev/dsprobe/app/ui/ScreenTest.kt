@@ -16,13 +16,35 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScreenTest {
-    @Test fun tooManyAlwaysWinsAndOutputsShowOnlyWhenAskedFor() {
-        assertEquals(Screen.TOO_MANY, screenFor(RouteState.TooMany, wantsOutputs = false))
-        assertEquals(Screen.TOO_MANY, screenFor(RouteState.TooMany, wantsOutputs = true))
+    @Test fun tooManyAlwaysWinsAndTheStackShowsOtherwise() {
+        val deep = ScreenStack().push(Screen.DEBUG).push(Screen.LOG)
+        assertEquals(Screen.TOO_MANY, screenFor(RouteState.TooMany, ScreenStack()))
+        assertEquals(Screen.TOO_MANY, screenFor(RouteState.TooMany, deep))
         for (s in listOf(RouteState.NoPad(), RouteState.Stranded(usbHit), androidMode(btPad), RouteState.DirectUsb(usbPad))) {
-            assertEquals(Screen.LIVE, screenFor(s, wantsOutputs = false))
-            assertEquals(Screen.OUTPUTS, screenFor(s, wantsOutputs = true))
+            assertEquals(Screen.LIVE, screenFor(s, ScreenStack()))
+            assertEquals(Screen.LOG, screenFor(s, deep))
         }
+    }
+
+    @Test fun backReturnsExactlyOneStep() {
+        val stack = ScreenStack().push(Screen.GUIDED).push(Screen.LOG)
+        assertEquals(Screen.LOG, stack.top)
+        assertEquals(Screen.GUIDED, stack.pop().top)
+        assertEquals(Screen.LIVE, stack.pop().pop().top)
+        assertEquals("back on Live stays on Live", Screen.LIVE, stack.pop().pop().pop().top)
+        assertFalse(ScreenStack().canPop)
+        assertTrue(stack.canPop)
+    }
+
+    @Test fun openingAScreenAlreadyInTheStackGoesBackToItSoItNeverRepeats() {
+        val stack = ScreenStack().push(Screen.DEBUG).push(Screen.GUIDED).push(Screen.LOG)
+        val again = stack.push(Screen.DEBUG)
+        assertEquals(listOf(Screen.LIVE, Screen.DEBUG), again.items)
+        assertEquals(stack, stack.push(Screen.LOG))
+    }
+
+    @Test(expected = IllegalArgumentException::class) fun aStackThatDoesNotStartAtLiveIsRefused() {
+        ScreenStack(listOf(Screen.DEBUG))
     }
 
     @Test fun outputsCanBeSentOnlyWhileARouteIsLive() {

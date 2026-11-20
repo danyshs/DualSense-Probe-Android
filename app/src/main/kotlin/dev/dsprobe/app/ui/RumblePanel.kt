@@ -6,8 +6,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -26,7 +25,6 @@ import dev.dsprobe.app.R
 import dev.dsprobe.app.output.OutputController
 import dev.dsprobe.app.output.OutputsShown
 import dev.dsprobe.app.output.PatternId
-import dev.dsprobe.app.ui.theme.DsColors
 import dev.dsprobe.app.ui.theme.NumberStyle
 import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.RumbleMode
@@ -52,7 +50,7 @@ private fun patternLabelRes(id: PatternId): Int = when (id) {
 @Composable
 private fun PickButton(labelRes: Int, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val label = @Composable { Text(stringResource(labelRes), maxLines = 1, softWrap = false) }
-    if (selected) Button(onClick, enabled = enabled) { label() } else OutlinedButton(onClick, enabled = enabled) { label() }
+    if (selected) TonalButton(onClick, enabled = enabled) { label() } else QuietButton(onClick, enabled = enabled) { label() }
 }
 
 @Composable
@@ -60,10 +58,7 @@ private fun ModePicker(enabled: Boolean, current: RumbleMode?, outputs: OutputCo
     // only a route that has modes (Direct USB) reports one
     if (current == null) return
     Text(stringResource(R.string.rumble_mode_label))
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        PickButton(R.string.rumble_mode_compatible, current == RumbleMode.COMPATIBLE, enabled) { outputs.setRumbleMode(RumbleMode.COMPATIBLE) }
-        PickButton(R.string.rumble_mode_v2, current == RumbleMode.V2, enabled) { outputs.setRumbleMode(RumbleMode.V2) }
-    }
+    Segmented(listOf(RumbleMode.COMPATIBLE to R.string.rumble_mode_compatible, RumbleMode.V2 to R.string.rumble_mode_v2), current, enabled, outputs::setRumbleMode)
 }
 
 /** What the user has set on the panel; lives only while the Outputs screen is open. */
@@ -121,8 +116,8 @@ private fun Patterns(enabled: Boolean, inputs: RumbleInputs, outputs: OutputCont
         val play = {
             outputs.playPattern(inputs.pattern, inputs.left.roundToInt(), inputs.right.roundToInt(), (inputs.durationS * MS_PER_SECOND).roundToInt(), rateHz)
         }
-        Button(play, enabled = enabled) { Text(stringResource(R.string.rumble_play), maxLines = 1, softWrap = false) }
-        OutlinedButton({ outputs.setRumble(0, 0) }, enabled = enabled) { Text(stringResource(R.string.rumble_stop), maxLines = 1, softWrap = false) }
+        TonalButton(play, enabled = enabled) { Text(stringResource(R.string.rumble_play), maxLines = 1, softWrap = false) }
+        QuietButton({ outputs.setRumble(0, 0) }, enabled = enabled) { Text(stringResource(R.string.rumble_stop), maxLines = 1, softWrap = false) }
     }
 }
 
@@ -139,6 +134,6 @@ fun RumbleSection(enabled: Boolean, shown: OutputsShown, outputs: OutputControll
             style = NumberStyle, maxLines = 1, softWrap = false,
         )
         RumbleTraces(shown.rumbleTrace)
-        Text(stringResource(R.string.rumble_hd_haptics), color = DsColors.TextDim)
+        Text(stringResource(R.string.rumble_hd_haptics), color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

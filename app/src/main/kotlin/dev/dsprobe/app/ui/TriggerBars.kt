@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.dp
-import dev.dsprobe.app.ui.theme.DsColors
+import dev.dsprobe.app.ui.theme.ChartColors
 import dev.dsprobe.app.ui.theme.NumberStyle
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -25,16 +25,17 @@ private const val TRIGGER_COLUMN_DP = 80 // fits "255 100%" in 14 sp monospace (
 /** A filling bar with a peak marker and the 0-255 value and percentage under it. */
 @Composable
 fun TriggerBar(label: String, value: Float, peak: Peak, modifier: Modifier = Modifier) {
+    val c = drawColors()
     val counts = (value * TRIGGER_COUNTS_MAX).roundToInt()
     val percent = (value * PERCENT_MAX).roundToInt()
     Column(modifier.width(TRIGGER_COLUMN_DP.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, color = DsColors.TextDim)
+        Text(label, color = c.textDim)
         Canvas(Modifier.width(32.dp).height(140.dp)) {
-            drawRect(DsColors.SurfaceHigh, Offset.Zero, size)
+            drawRect(c.surfaceHigh, Offset.Zero, size)
             val fill = size.height * value
-            drawRect(DsColors.Accent, Offset(0f, size.height - fill), Size(size.width, fill))
+            drawRect(c.accent, Offset(0f, size.height - fill), Size(size.width, fill))
             val markerY = size.height * (1f - peak.value)
-            drawRect(DsColors.Text, Offset(0f, markerY.coerceIn(0f, size.height - MARKER_PX)), Size(size.width, MARKER_PX))
+            drawRect(c.text, Offset(0f, markerY.coerceIn(0f, size.height - MARKER_PX)), Size(size.width, MARKER_PX))
         }
         // fixed 8 chars, one line: the value can never reflow the layout
         Text(String.format(Locale.ROOT, "%3d %3d%%", counts, percent), style = NumberStyle, maxLines = 1, softWrap = false)

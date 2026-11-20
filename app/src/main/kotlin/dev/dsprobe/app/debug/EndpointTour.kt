@@ -7,7 +7,8 @@ import dev.dsprobe.app.AppLimits
 import dev.dsprobe.pad.toHex
 
 /** What the developer said about one card. */
-enum class Verdict { WORKS, DOESNT, CHANGED }
+/** The answer to "Did the pad react?": Yes, No, Not sure. */
+enum class Verdict { WORKS, DOESNT, NOT_SURE }
 
 /** One visited card: the answer (null verdict = none yet), the note, and every row seen while it was open. */
 data class CardAnswer(
@@ -20,6 +21,7 @@ data class CardAnswer(
 
 private class Entry(val card: EndpointCard) {
     var verdict: Verdict? = null
+    var tried = false
     var note = ""
     val seen = ArrayList<RowLines>()
 }
@@ -50,6 +52,20 @@ class EndpointTour(val cards: List<EndpointCard>) {
     val seenNow: List<RowLines> get() = entryOf(current)?.seen?.toList().orEmpty().also { check(version >= 0) { "version" } }
 
     val verdictNow: Verdict? get() = entryOf(current)?.verdict.also { check(version >= 0) { "version" } }
+
+    /** True once Try it was pressed on the open card. Reading it subscribes the screen. */
+    val triedNow: Boolean get() = (entryOf(current)?.tried ?: false).also { check(version >= 0) { "version" } }
+
+    /** The "Did the pad react?" question shows only after Try it, and only until it is answered. */
+    val reactionPending: Boolean get() = triedNow && verdictNow == null
+
+    /** Records that Try it was pressed on the open card, which is what lets the reaction question appear. */
+    fun markTried() {
+        val entry = entryOf(current) ?: return
+        if (entry.tried) return
+        entry.tried = true
+        version += 1
+    }
 
     fun start() {
         entries.clear()

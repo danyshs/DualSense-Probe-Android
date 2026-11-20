@@ -7,8 +7,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.width
@@ -33,7 +34,6 @@ import dev.dsprobe.app.route.NoticeKind
 import dev.dsprobe.app.route.Reduction
 import dev.dsprobe.app.route.Route
 import dev.dsprobe.app.route.RouteState
-import dev.dsprobe.app.ui.theme.DsColors
 import dev.dsprobe.app.ui.theme.NumberStyle
 
 @StringRes
@@ -102,11 +102,11 @@ private fun headphonesText(headphonesIn: Boolean?): String = when (headphonesIn)
 
 @Composable
 private fun ReducedList(reduced: List<Reduction>) {
-    Column(Modifier.fillMaxWidth().background(DsColors.SurfaceHigh).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (r in reduced) {
             Column {
                 Text(stringResource(featureNameRes(r.feature)), fontWeight = FontWeight.Bold)
-                Text(stringResource(r.reasonRes, *r.reasonArgs.toTypedArray()), color = DsColors.TextDim)
+                Text(stringResource(r.reasonRes, *r.reasonArgs.toTypedArray()), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -131,20 +131,20 @@ fun HeaderStrip(
     Column(modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             val routeName = if (routeOf(state) == Route.ANDROID) R.string.route_android else R.string.route_direct_usb
-            Text(stringResource(routeName), Modifier.weight(1f), fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(stringResource(routeName), Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, maxLines = 1)
             if (pad != null) Text(stringResource(R.string.battery_label, batteryText(battery)), Modifier.padding(start = 8.dp).width(BATTERY_WIDTH_DP.dp), style = NumberStyle, textAlign = TextAlign.End, maxLines = 1, softWrap = false)
         }
-        Text(padLine(pad), Modifier.fillMaxWidth(), color = DsColors.TextDim)
+        Text(padLine(pad), Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (state is RouteState.AndroidMode) AndroidBanner(state, locked, showReduced, answers, onRefreshAnswers, onSwitch) { showReduced = !showReduced }
         if (state is RouteState.DirectUsb) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onBack) { Text(stringResource(R.string.back_to_android)) }
-                if (onCrashNow != null) Button(onClick = onCrashNow) { Text(stringResource(R.string.crash_now)) }
+                TonalButton(onClick = onBack) { Text(stringResource(R.string.back_to_android)) }
+                if (onCrashNow != null) TonalButton(onClick = onCrashNow) { Text(stringResource(R.string.crash_now)) }
             }
             Text(headphonesText(headphonesIn), style = NumberStyle, maxLines = 1, softWrap = false)
-            if (state.secondPadIgnored) Text(stringResource(R.string.second_pad_ignored), color = DsColors.Warn)
+            if (state.secondPadIgnored) Text(stringResource(R.string.second_pad_ignored), color = MaterialTheme.colorScheme.tertiary)
         }
-        stateMessageRes(state)?.let { Text(stringResource(it), Modifier.fillMaxWidth(), color = DsColors.Warn) }
+        stateMessageRes(state)?.let { Text(stringResource(it), Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.tertiary) }
     }
 }
 
@@ -168,21 +168,21 @@ private fun AndroidBanner(
 ) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (state.pad.transport == Transport.BLUETOOTH) {
-            Text(stringResource(R.string.banner_bluetooth), Modifier.fillMaxWidth(), color = DsColors.Warn, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.banner_bluetooth_detail), Modifier.fillMaxWidth(), color = DsColors.TextDim)
+            Text(stringResource(R.string.banner_bluetooth), Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.banner_bluetooth_detail), Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (reduced.isNotEmpty()) {
             Text(
                 stringResource(R.string.banner_reduced, reduced.size),
-                color = DsColors.Warn,
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 8.dp),
+                color = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.fillMaxWidth().heightIn(min = TOUCH_TARGET_DP.dp).clickable(onClick = onToggle).padding(vertical = 8.dp),
             )
             if (expanded) ReducedList(reduced)
         }
         AnswersSheet(answers, onRefreshAnswers)
         if (state.pad.transport == Transport.USB) {
-            Button(onClick = onSwitch) { Text(stringResource(R.string.switch_to_direct_usb)) }
+            TonalButton(onClick = onSwitch) { Text(stringResource(R.string.switch_to_direct_usb)) }
         }
-        state.notice?.let { Text(stringResource(noticeRes(it.kind), it.detail), Modifier.fillMaxWidth(), color = DsColors.Warn) }
+        state.notice?.let { Text(stringResource(noticeRes(it.kind), it.detail), Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.tertiary) }
     }
 }

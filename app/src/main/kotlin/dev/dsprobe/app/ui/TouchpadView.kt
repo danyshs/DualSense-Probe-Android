@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.R
 import dev.dsprobe.app.live.TouchPoint
-import dev.dsprobe.app.ui.theme.DsColors
+import dev.dsprobe.app.ui.theme.ChartColors
 import dev.dsprobe.app.ui.theme.NumberStyle
 import dev.dsprobe.pad.Limits
 
@@ -30,27 +30,28 @@ private const val RIPPLE_RADIUS_PX = 90f
  */
 @Composable
 fun TouchpadView(ui: LiveUi, lockedReason: Int?, androidMode: Boolean, modifier: Modifier = Modifier) {
+    val c = drawColors()
     val touches = ui.frame.state.touches
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row { Text(stringResource(R.string.label_touchpad), color = DsColors.TextDim) }
+        Row { Text(stringResource(R.string.label_touchpad), color = c.textDim) }
         Canvas(Modifier.fillMaxWidth().aspectRatio(PAD_ASPECT)) {
-            drawRect(DsColors.SurfaceHigh, Offset.Zero, size)
-            drawRect(DsColors.Outline, Offset.Zero, size, style = Stroke(width = 2f))
+            drawRect(c.surfaceHigh, Offset.Zero, size)
+            drawRect(c.outline, Offset.Zero, size, style = Stroke(width = 2f))
             for (p in ui.feel.touchTrail) {
                 val age = (ui.feel.nowMs - p.atMs).toFloat() / AppLimits.STICK_TRAIL_MS
-                drawCircle(DsColors.Accent.copy(alpha = (1f - age).coerceIn(0f, 1f) * 0.4f), FINGER_PX * 0.6f, Offset(p.x * size.width, p.y * size.height))
+                drawCircle(c.accent.copy(alpha = (1f - age).coerceIn(0f, 1f) * 0.4f), FINGER_PX * 0.6f, Offset(p.x * size.width, p.y * size.height))
             }
             for (r in ui.feel.ripples) {
                 val progress = ((ui.feel.nowMs - r.atMs).toFloat() / AppLimits.CLICK_RIPPLE_MS).coerceIn(0f, 1f)
-                drawCircle(DsColors.Accent.copy(alpha = 1f - progress), RIPPLE_RADIUS_PX * progress, Offset(r.x * size.width, r.y * size.height), style = Stroke(width = 4f))
+                drawCircle(c.accent.copy(alpha = 1f - progress), RIPPLE_RADIUS_PX * progress, Offset(r.x * size.width, r.y * size.height), style = Stroke(width = 4f))
             }
-            for (t in touches) drawCircle(DsColors.Accent, FINGER_PX, Offset(t.x * size.width, t.y * size.height))
-            if (lockedReason != null) drawLock(Offset(size.width - LOCK_PX * 1.5f, LOCK_PX * 1.5f), LOCK_PX)
+            for (t in touches) drawCircle(c.accent, FINGER_PX, Offset(t.x * size.width, t.y * size.height))
+            if (lockedReason != null) drawLock(c, Offset(size.width - LOCK_PX * 1.5f, LOCK_PX * 1.5f), LOCK_PX)
         }
-        if (androidMode) Text(stringResource(R.string.touchpad_android_note), color = DsColors.TextDim)
+        if (androidMode) Text(stringResource(R.string.touchpad_android_note), color = c.textDim)
         // two fixed lines (one per finger slot) so a second finger never adds height
         Text(touchText(touches), style = NumberStyle, minLines = TOUCH_LINES, maxLines = TOUCH_LINES, softWrap = false)
-        if (lockedReason != null) Text(stringResource(lockedReason), color = DsColors.TextDim)
+        if (lockedReason != null) Text(stringResource(lockedReason), color = c.textDim)
     }
 }
 

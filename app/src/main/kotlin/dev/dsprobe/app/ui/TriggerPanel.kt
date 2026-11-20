@@ -4,8 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,7 +15,6 @@ import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.R
 import dev.dsprobe.app.output.OutputController
 import dev.dsprobe.app.output.TriggerShown
-import dev.dsprobe.app.ui.theme.DsColors
 import dev.dsprobe.app.ui.theme.NumberStyle
 import dev.dsprobe.pad.Limits
 import kotlin.math.roundToInt
@@ -41,8 +39,8 @@ private fun TriggerRow(isRight: Boolean, enabled: Boolean, shown: TriggerShown, 
                 valueRange = 0f..Limits.TRIGGER_FORCE_MAX.toFloat(),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button({ outputs.pressTrigger(isRight) }, enabled = enabled) { Text(stringResource(R.string.trigger_resist), maxLines = 1, softWrap = false) }
-                OutlinedButton({ outputs.clearTrigger(isRight) }, enabled = enabled) { Text(stringResource(R.string.trigger_off), maxLines = 1, softWrap = false) }
+                TonalButton({ outputs.pressTrigger(isRight) }, enabled = enabled) { Text(stringResource(R.string.trigger_resist), maxLines = 1, softWrap = false) }
+                QuietButton({ outputs.clearTrigger(isRight) }, enabled = enabled) { Text(stringResource(R.string.trigger_off), maxLines = 1, softWrap = false) }
             }
             val state = stringResource(if (shown.on) R.string.trigger_status_on else R.string.trigger_status_off)
             Text(stringResource(R.string.trigger_status, state, (shown.remainingMs + MS_PER_SECOND - 1) / MS_PER_SECOND), style = NumberStyle, maxLines = 1, softWrap = false)
@@ -56,6 +54,6 @@ fun TriggerSection(enabled: Boolean, ui: LiveUi, r2: TriggerShown, l2: TriggerSh
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         TriggerRow(false, enabled, l2, ui.frame.state.l2, ui.feel.l2Peak, outputs)
         TriggerRow(true, enabled, r2, ui.frame.state.r2, ui.feel.r2Peak, outputs)
-        Text(stringResource(R.string.trigger_other_modes), color = DsColors.TextDim)
+        Text(stringResource(R.string.trigger_other_modes), color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

@@ -3,7 +3,7 @@ package dev.dsprobe.app.ui
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,7 +20,6 @@ import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.R
 import dev.dsprobe.app.route.AndroidAnswers
 import dev.dsprobe.app.route.answerRows
-import dev.dsprobe.app.ui.theme.DsColors
 import dev.dsprobe.app.ui.theme.NumberStyle
 import kotlinx.coroutines.delay
 
@@ -29,7 +28,7 @@ import kotlinx.coroutines.delay
 fun AnswersSheet(answers: AndroidAnswers?, onRefresh: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     val refresh by rememberUpdatedState(onRefresh)
-    OutlinedButton(onClick = { open = !open }) { Text(stringResource(R.string.answers_toggle)) }
+    QuietButton(onClick = { open = !open }) { Text(stringResource(R.string.answers_toggle)) }
     if (!open) return
     LaunchedEffect(Unit) {
         while (true) {
@@ -38,7 +37,7 @@ fun AnswersSheet(answers: AndroidAnswers?, onRefresh: () -> Unit) {
         }
     }
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        if (answers == null) Text(stringResource(R.string.answers_none), color = DsColors.TextDim)
+        if (answers == null) Text(stringResource(R.string.answers_none), color = MaterialTheme.colorScheme.onSurfaceVariant)
         for (row in answers?.let(::answerRows).orEmpty()) {
             Text(
                 stringResource(R.string.answer_row, stringResource(row.labelRes), row.value),

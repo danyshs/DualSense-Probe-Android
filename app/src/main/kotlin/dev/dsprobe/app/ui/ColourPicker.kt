@@ -38,7 +38,6 @@ import dev.dsprobe.app.output.parseChannel
 import dev.dsprobe.app.output.parseHex
 import dev.dsprobe.app.output.rgbToHsv
 import dev.dsprobe.app.output.toHex
-import dev.dsprobe.app.ui.theme.DsColors
 import dev.dsprobe.app.ui.theme.NumberStyle
 import dev.dsprobe.pad.Rgb
 

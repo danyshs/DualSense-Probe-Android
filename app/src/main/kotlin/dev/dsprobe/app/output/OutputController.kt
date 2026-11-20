@@ -255,6 +255,11 @@ class OutputController(
         mutable.value = mutable.value.copy(muteLed = mode, lastAnswer = answer, ask = askFor(AskKind.MUTE_LED, "mute LED $mode", answer))
     }
 
+    /** "Not sure": the question goes away and nothing is logged as an answer. */
+    fun dismissAsk() {
+        if (mutable.value.ask != null) mutable.value = mutable.value.copy(ask = null)
+    }
+
     /** The user's yes or no to "Did it change?": logged next to what Android answered, then the question goes away. */
     fun answerChanged(changed: Boolean) {
         val ask = mutable.value.ask ?: return
