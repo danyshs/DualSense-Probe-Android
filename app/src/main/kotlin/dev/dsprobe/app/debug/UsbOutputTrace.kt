@@ -98,7 +98,8 @@ class UsbOutputTrace {
         val result = if (send.ok) "sent ok" else "NOT taken by bulkTransfer"
         val detail = "request ${send.request}  fields ${send.fields.joinToString("+")}  report 0x02 ${changesText(changes)}  " +
             "flags ${flagsText(send.report)}  ${send.report.size} bytes $result"
-        return TraceRow(timeMs, Route.DIRECT_USB, control, traceLine(control, Route.DIRECT_USB, detail))
+        val location = "report 0x02 · ${changesText(changes)} · flags ${flagsText(send.report)} · ${send.report.size} bytes · $result"
+        return TraceRow(timeMs, Route.DIRECT_USB, control, traceLine(control, Route.DIRECT_USB, detail), "$control  ${send.request}", location)
     }
 }
 

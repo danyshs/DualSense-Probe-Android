@@ -95,7 +95,7 @@ class PadSession(context: Context) : RouteHost {
         val stats = debug.stats
         val footer = LogFooter(stats.reportsReceived, stats.reportsDropped, stats.longestGapMs, debug.feedOverflow, debug.trace.axisRowsSkipped, androidRoute.lateEventsDropped)
         val crash = askOrNull("crash record", ::logWarn) { crashRecord().orEmpty() }?.ifEmpty { null }
-        return renderLog(LogInput(header, androidRoute.answers.value ?: lastAnswers, results, debug.logRows(), crash, footer))
+        return renderLog(LogInput(header, androidRoute.answers.value ?: lastAnswers, results, debug.logRows(), crash, footer, debug.tour.answers))
     }
 
     /** The debug "Crash now" button exists only in a debuggable build. */

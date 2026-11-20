@@ -68,11 +68,22 @@ private fun decodedText(src: FieldSource, v: Int): String = when {
     else -> v.toString()
 }
 
+private fun headlineFor(src: FieldSource, before: Int, after: Int): String {
+    if (src.id.startsWith("in.button.")) return controlLabel(src.id) + "  " + (if (after != 0) "pressed" else "released")
+    return src.id + "  " + decodedText(src, before) + " → " + decodedText(src, after)
+}
+
+private fun locationFor(src: FieldSource, prev: ByteArray, cur: ByteArray): String =
+    "report 0x%02x".format(src.reportId) + " · " + placeOfField(src) +
+        " · raw " + hexOfRaw(src, rawOfField(src, prev)) + " → " + hexOfRaw(src, rawOfField(src, cur)) +
+        " · FACTS " + src.factsRow + " · " + parserReaderOf(src.id)
+
 private fun rowFor(src: FieldSource, prev: ByteArray, cur: ByteArray, timeMs: Long): TraceRow {
     val detail = "report 0x%02x ${placeOfField(src)}  raw ${hexOfRaw(src, rawOfField(src, prev))} -> ${hexOfRaw(src, rawOfField(src, cur))}".format(src.reportId) +
         "  decoded ${decodedText(src, decodedOfField(src, prev))} -> ${decodedText(src, decodedOfField(src, cur))}" +
         "  FACTS ${src.factsRow}  read by ${parserReaderOf(src.id)}"
-    return TraceRow(timeMs, Route.DIRECT_USB, src.id, traceLine(src.id, Route.DIRECT_USB, detail))
+    val headline = headlineFor(src, decodedOfField(src, prev), decodedOfField(src, cur))
+    return TraceRow(timeMs, Route.DIRECT_USB, src.id, traceLine(src.id, Route.DIRECT_USB, detail), headline, locationFor(src, prev, cur))
 }
 
 /** One row per field that differs between two reports, read straight off INPUT_MAP. The sequence counter changes every report and is not a row. */

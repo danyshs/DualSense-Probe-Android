@@ -7,6 +7,7 @@ import dev.dsprobe.app.route.Route
  * One input report or output send (Direct USB), or one described Android event or call.
  * [raw] is the report bytes; [described] is a finished trace line for [control] (an "in." or "out." ID, null in bare test events);
  * [state] is the pad as it stands after the event, when the route has one.
+ * [headline] and [location] are the two screen lines (what happened, where it comes from) when the route can word them; null derives them.
  * A bare raw report is an input the trace decodes itself; an output send carries both.
  */
 data class FeedEvent(
@@ -16,6 +17,8 @@ data class FeedEvent(
     val described: String?,
     val control: String? = null,
     val state: PadState? = null,
+    val headline: String? = null,
+    val location: String? = null,
 ) {
     init {
         require(raw != null || described != null) { "a feed event carries bytes or a description" }

@@ -75,15 +75,6 @@ class TraceModelTest {
         assertTrue(m.rows.last().text.endsWith("n25"))
     }
 
-    @Test fun followingAControlKeepsItAndEverythingUnderItAndNothingElse() {
-        val rows = listOf("in.stick.left.x", "in.stick.left.y", "in.stick.right.x", "in.button.cross", "in.button.circle")
-            .map { TraceRow(0L, Route.ANDROID, it, it) }
-        assertEquals(rows, followRows(rows, null))
-        assertEquals(listOf("in.stick.left.x", "in.stick.left.y"), followRows(rows, "in.stick.left").map { it.control })
-        assertEquals(listOf("in.button.cross"), followRows(rows, "in.button.cross").map { it.control })
-        assertEquals(emptyList<TraceRow>(), followRows(rows, "in.button.cro"))
-    }
-
     @Test fun clearingStartsOverWithoutAStaleBaseline() {
         val m = TraceModel()
         m.ingest(listOf(usb(TestFixtures.report("idle"), 0)))

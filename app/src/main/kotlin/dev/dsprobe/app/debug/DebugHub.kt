@@ -10,6 +10,10 @@ import dev.dsprobe.app.live.EventFeed
 class DebugHub(private val feed: EventFeed) {
     val trace = TraceModel()
     val stats = FeedStats()
+    val tour = EndpointTour(buildEndpointCards())
+
+    /** The checklist choice; it lives here so it survives leaving the screen. */
+    var checkedGroups: Set<String> = defaultCheckedGroups()
     private val saved = LinkedHashSet<TraceRow>()
     private var isOpen = false
 
@@ -32,7 +36,8 @@ class DebugHub(private val feed: EventFeed) {
     fun pump(runner: DebugRunner?) {
         if (!isOpen) return
         val events = feed.drain()
-        trace.ingest(events)
+        val fresh = trace.ingest(events)
+        tour.observe(fresh, trace.latestReport)
         stats.ingest(events)
         runner?.onEvents(events)
         runner?.tick()

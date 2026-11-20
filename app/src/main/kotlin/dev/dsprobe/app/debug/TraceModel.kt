@@ -22,42 +22,52 @@ class TraceModel {
 
     val rows: List<TraceRow> get() = kept.toList()
 
+    /** The newest Direct USB input report, for cards that show a live raw value. */
+    val latestReport: ByteArray? get() = previousReport
+
     /** Goes up whenever the rows change, so the screen copies the list only then. */
     var version = 0L
         private set
 
-    fun ingest(events: List<FeedEvent>) {
+    /** Returns the rows this call added, so a listener sees only what is new. */
+    fun ingest(events: List<FeedEvent>): List<TraceRow> {
+        val before = version
+        val fresh = ArrayList<TraceRow>()
         for (event in events) {
             val timeMs = event.timeNs / NANOS_PER_MS
             val raw = event.raw
             if (event.control == null && raw != null) {
-                usbInput(raw, timeMs)
+                usbInput(raw, timeMs, fresh)
             } else if (event.described != null && event.control != null) {
-                add(TraceRow(timeMs, event.route, event.control, event.described))
+                val row = TraceRow(timeMs, event.route, event.control, event.described, event.headline.orEmpty(), event.location.orEmpty())
+                if (add(row)) fresh.add(row)
             }
         }
+        check(version - before == fresh.size.toLong()) { "fresh rows and version disagree" }
+        return fresh
     }
 
-    private fun usbInput(report: ByteArray, timeMs: Long) {
+    private fun usbInput(report: ByteArray, timeMs: Long, fresh: MutableList<TraceRow>) {
         val prev = previousReport
         previousReport = report
         // a report of the wrong shape was counted by the route; there is nothing to decode
         if (prev == null || report.size != prev.size || report.size != Limits.USB_INPUT_REPORT_BYTES) return
-        for (row in usbInputRows(prev, report, timeMs)) add(row)
+        for (row in usbInputRows(prev, report, timeMs)) if (add(row)) fresh.add(row)
     }
 
-    private fun add(row: TraceRow) {
+    private fun add(row: TraceRow): Boolean {
         if (isAxisControl(row.control)) {
             val last = lastAxisRowMs[row.control]
             if (last != null && row.timeMs - last < AppLimits.ROUTE_TRACE_AXIS_INTERVAL_MS_MIN) {
                 axisRowsSkipped += 1
-                return
+                return false
             }
             lastAxisRowMs[row.control] = row.timeMs
         }
         kept.addFirst(row)
         if (kept.size > AppLimits.ROUTE_TRACE_ROWS_MAX) kept.removeLast()
         version += 1
+        return true
     }
 
     fun clear() {
@@ -67,7 +77,3 @@ class TraceModel {
         lastAxisRowMs.clear()
     }
 }
-
-/** The rows that belong to the followed control: its ID or anything under it. Null follows nothing. */
-fun followRows(rows: List<TraceRow>, follow: String?): List<TraceRow> =
-    if (follow == null) rows else rows.filter { it.control == follow || it.control.startsWith("$follow.") }

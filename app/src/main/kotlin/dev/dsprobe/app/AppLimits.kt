@@ -31,6 +31,12 @@ object AppLimits {
     const val REJECTED_REPORTS_LOGGED_MAX = 20
 
     const val ROUTE_TRACE_ROWS_MAX = 500
+    const val TOUR_CARDS_MAX = 160
+    const val TOUR_NOTE_CHARS_MAX = 200
+    const val TOUR_ROWS_PER_CARD_MAX = 100
+    const val TRACE_COPY_CHARS_MAX = 2_000
+    const val NOTICE_SHOW_MS = 2_500L // long enough to read one line
+    const val TRACE_LIST_HEIGHT_DP = 360
     const val ROUTE_TRACE_AXIS_INTERVAL_MS_MIN = 100L // a guess: 10 rows a second per axis stays readable
     const val INPUT_TEST_TIMEOUT_MS = 10_000L
     const val CONFIRM_TAP_TIMEOUT_MS = 60_000L

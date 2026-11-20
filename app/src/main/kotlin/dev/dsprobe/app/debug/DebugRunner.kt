@@ -1,5 +1,9 @@
 package dev.dsprobe.app.debug
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.live.FeedEvent
 import dev.dsprobe.app.route.ApiAnswer
@@ -50,14 +54,21 @@ class DebugRunner(
     private val sent = ArrayList<String>()
     private var directUsbFailed = false
 
-    var phase = Phase.IDLE
+    // Compose state: the screen reads these, so any write redraws it with no one needing to remember a counter
+    var phase by mutableStateOf(Phase.IDLE)
         private set
 
-    /** Goes up on every change the screen shows, so the screen recomposes only then. */
-    var revision = 0L
+    /** Goes up on every change to the results; reading it subscribes the reader. */
+    var revision by mutableLongStateOf(0L)
         private set
 
-    val results: List<TestResult> get() = done.toList()
+    /** A line about a test that settled without a prompt ("route not live"), shown briefly; null when none. */
+    var notice by mutableStateOf<String?>(null)
+        private set
+
+    private var noticeUntilMs = 0L
+
+    val results: List<TestResult> get() = done.toList().also { check(revision >= 0L) { "revision" } }
 
     val current: TestCase? get() = if (phase == Phase.IDLE || phase == Phase.DONE) null else tests.getOrNull(index)
 
@@ -133,8 +144,9 @@ class DebugRunner(
 
     /** Once per frame: timeouts, the route wait, and the Mute watch. */
     fun tick() {
-        val test = current ?: return
         val now = nowMs()
+        if (notice != null && now >= noticeUntilMs) notice = null
+        val test = current ?: return
         if (now - startedMs > AppLimits.DEBUG_RUN_MS_MAX) {
             finishRun()
             return
@@ -189,12 +201,14 @@ class DebugRunner(
         if (check is Check.AwaitRoute) return beginRoute(test, check.route)
         if (test.route != env.currentRoute() || (test.route == Route.DIRECT_USB && directUsbFailed)) {
             record(test, Outcome.ROUTE_UNAVAILABLE, "route ${test.route} is not live")
+            say("${test.id}: route ${test.route} is not live, skipped")
             return false
         }
         val locked = test.route == Route.ANDROID && test.feature != null && env.isLocked(test.feature)
         // Mute is still prompted while locked: a key event is how it would unlock
         if (locked && test.id != MUTE_ID) {
             record(test, Outcome.NOT_OFFERED, "Android offers no API for this")
+            say("${test.id}: Android offers no API for this, skipped")
             return false
         }
         return when (check) {
@@ -245,6 +259,11 @@ class DebugRunner(
         if (test.feature == Feature.MUTE_BUTTON) env.setMuteWatched(false)
         record(test, outcome, detail)
         startNext()
+    }
+
+    private fun say(line: String) {
+        notice = line
+        noticeUntilMs = nowMs() + AppLimits.NOTICE_SHOW_MS
     }
 
     private fun enter(next: Phase) {

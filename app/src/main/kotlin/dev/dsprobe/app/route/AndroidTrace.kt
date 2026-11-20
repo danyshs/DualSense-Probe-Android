@@ -4,6 +4,7 @@ import android.hardware.Sensor
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import dev.dsprobe.app.debug.controlLabel
 import dev.dsprobe.app.debug.requestControl
 import dev.dsprobe.app.debug.requestText
 import dev.dsprobe.app.debug.traceLine
@@ -48,7 +49,9 @@ fun keyTraceEvent(
     val action = if (down) "KeyEvent.ACTION_DOWN = ${KeyEvent.ACTION_DOWN}" else "KeyEvent.ACTION_UP = ${KeyEvent.ACTION_UP}"
     val meaning = if (button != null) "maps to Button.${button.name}" else "UNMAPPED key code, no pad control is moved"
     val detail = "hook $HOOK_KEY  $action  KeyEvent.$keyName = $keyCode  scan $scanCode  device $deviceId source ${sourceText(source)}  $meaning"
-    return FeedEvent(timeNs, Route.ANDROID, null, traceLine(control, Route.ANDROID, detail), control, state)
+    val headline = (if (button != null) controlLabel(control) else "Key $keyCode") + "  " + (if (down) "pressed" else "released")
+    val location = "dispatchKeyEvent · $keyName=$keyCode · scan $scanCode · device $deviceId"
+    return FeedEvent(timeNs, Route.ANDROID, null, traceLine(control, Route.ANDROID, detail), control, state, headline, location)
 }
 
 private class AxisSpec(val axis: Int, val name: String, val control: String, val read: (AxisReading) -> Float)

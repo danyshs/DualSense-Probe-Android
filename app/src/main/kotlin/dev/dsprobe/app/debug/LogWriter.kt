@@ -44,6 +44,7 @@ class LogInput(
     val trace: List<TraceRow>,
     val crashRecord: String?,
     val footer: LogFooter,
+    val tourAnswers: List<CardAnswer> = emptyList(),
 )
 
 /**
@@ -121,6 +122,7 @@ fun renderLog(input: LogInput, caps: LogCaps = LogCaps.DEFAULT): String {
     val body = ArrayList<String>()
     input.answers?.let { body.addAll(answerLines(it)) } ?: body.add("android.answers=none")
     body.addAll(testLines(input.results))
+    body.addAll(tourLines(input.tourAnswers))
     for (row in input.trace.asReversed()) body.add("trace control=${row.control} route=${routeTag(row.route)} line=${row.text}")
     input.crashRecord?.lines()?.forEach { body.add("crash ${it}") }
     for (line in body) if (!log.line(line)) break
