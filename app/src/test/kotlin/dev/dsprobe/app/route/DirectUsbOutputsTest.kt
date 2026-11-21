@@ -10,8 +10,8 @@ import dev.dsprobe.pad.TriggerEffect
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -56,7 +56,9 @@ class DirectUsbOutputsTest {
 
     private fun open(firmware: ByteArray?): DirectUsbRoute {
         link = RecordingLink(firmware)
-        return DirectUsbRoute(link, LiveState(), EventFeed(), { log.add("fault $it") }, { log.add(it) }).also {
+        return DirectUsbRoute(link, LiveState(), EventFeed(), {
+            log.add("fault $it")
+        }, { log.add(it) }).also {
             route = it
             it.start()
         }
@@ -75,7 +77,10 @@ class DirectUsbOutputsTest {
         }
     }
 
-    /** Sends each request in turn and checks the report it produced against the golden file of that name. */
+    /**
+     * Sends each request in turn and checks the report it produced against the golden file of that
+     * name.
+     */
     private fun check(cases: Map<String, OutputRequest>) {
         val r = route!!
         var expected = 0
@@ -83,23 +88,41 @@ class DirectUsbOutputsTest {
             assertEquals(name, ApiAnswer.Ok, r.send(req))
             expected += 1
             waitForWrites(expected)
-            assertArrayEquals(name, TestFixtures.bytes("golden/$name.hex"), link.writes[expected - 1])
+            assertArrayEquals(
+                name,
+                TestFixtures.bytes("golden/$name.hex"),
+                link.writes[expected - 1],
+            )
         }
     }
 
     @Test fun everyLightbarColourBecomesItsGoldenReport() {
         open(null)
-        check(listOf("000000", "0000ff", "00ff00", "00ffff", "ff0000", "ffff00", "ffffff").associate { "lightbar-$it" to OutputRequest.Lightbar(rgb(it)) })
+        check(
+            listOf("000000", "0000ff", "00ff00", "00ffff", "ff0000", "ffff00", "ffffff").associate {
+                "lightbar-$it" to
+                    OutputRequest.Lightbar(rgb(it))
+            },
+        )
     }
 
     @Test fun everyPlayerLedMaskBecomesItsGoldenReport() {
         open(null)
-        check(listOf(0x01, 0x02, 0x04, 0x08, 0x10, 0x1f, 0x00).associate { "player-leds-%02x".format(it) to OutputRequest.PlayerLeds(it) })
+        check(
+            listOf(0x01, 0x02, 0x04, 0x08, 0x10, 0x1f, 0x00).associate {
+                "player-leds-%02x".format(it) to
+                    OutputRequest.PlayerLeds(it)
+            },
+        )
     }
 
     @Test fun theMuteLedOffOnAndPulseBecomeTheirGoldenReports() {
         open(null)
-        check(MuteLed.entries.associate { "mute-led-${it.ordinal}" to OutputRequest.SetMuteLed(it) })
+        check(
+            MuteLed.entries.associate {
+                "mute-led-${it.ordinal}" to OutputRequest.SetMuteLed(it)
+            },
+        )
     }
 
     @Test fun withoutAFirmwareAnswerRumbleUsesTheCompatibleFlags() {
@@ -146,8 +169,15 @@ class DirectUsbOutputsTest {
 
     @Test fun everyGoldenOfTheFourOutputGroupsIsCoveredByATestAbove() {
         val covered = setOf(
-            "000000", "0000ff", "00ff00", "00ffff", "ff0000", "ffff00", "ffffff",
-        ).map { "lightbar-$it" } + listOf("00", "01", "02", "04", "08", "10", "1f").map { "player-leds-$it" } +
+            "000000",
+            "0000ff",
+            "00ff00",
+            "00ffff",
+            "ff0000",
+            "ffff00",
+            "ffffff",
+        ).map { "lightbar-$it" } +
+            listOf("00", "01", "02", "04", "08", "10", "1f").map { "player-leds-$it" } +
             listOf(0, 1, 2).map { "mute-led-$it" } +
             listOf("right", "left", "both", "off", "v2-both", "v2-off").map { "rumble-$it" } +
             listOf("r2-resistance", "r2-off", "l2-resistance", "l2-off")
@@ -192,18 +222,32 @@ class DirectUsbOutputsTest {
     @Test fun aTriggerDurationPastTheLimitIsOurBugAndIsRefusedLoudly() {
         open(null)
         assertThrows(IllegalArgumentException::class.java) {
-            route!!.send(OutputRequest.Trigger(true, PUSH, Limits.TRIGGER_EFFECT_DURATION_MS_MAX + 1))
+            route!!.send(
+                OutputRequest.Trigger(true, PUSH, Limits.TRIGGER_EFFECT_DURATION_MS_MAX + 1),
+            )
         }
     }
 
     @Test fun aForcePastTheCapCannotBeBuilt() {
-        assertThrows(IllegalArgumentException::class.java) { TriggerEffect.resistance(0x30u, (Limits.TRIGGER_FORCE_MAX + 1).toUByte()) }
+        assertThrows(IllegalArgumentException::class.java) {
+            TriggerEffect.resistance(
+                0x30u,
+                (
+                    Limits.TRIGGER_FORCE_MAX +
+                        1
+                    ).toUByte(),
+            )
+        }
     }
 
     @Test fun audioIsRefusedUntilItsStepAndNothingIsSent() {
         open(null)
         val r = route!!
-        assertTrue(r.send(OutputRequest.AudioTone(dev.dsprobe.pad.AudioRoute.SPEAKER, 440)) is ApiAnswer.Failed)
+        assertTrue(
+            r.send(
+                OutputRequest.AudioTone(dev.dsprobe.pad.AudioRoute.SPEAKER, 440),
+            ) is ApiAnswer.Failed,
+        )
         Thread.sleep(3 * IDLE_READ_MS)
         assertEquals(0, link.writes.size)
     }
@@ -217,6 +261,8 @@ class DirectUsbOutputsTest {
 
     @Test fun aMaskPastFiveBitsIsOurBugAndIsRefusedLoudly() {
         open(null)
-        assertThrows(IllegalArgumentException::class.java) { route!!.send(OutputRequest.PlayerLeds(0x20)) }
+        assertThrows(IllegalArgumentException::class.java) {
+            route!!.send(OutputRequest.PlayerLeds(0x20))
+        }
     }
 }

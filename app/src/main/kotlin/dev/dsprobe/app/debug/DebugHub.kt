@@ -4,7 +4,8 @@ import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.live.EventFeed
 
 /**
- * Debug Mode's one subscription to the feed: while it is open the trace, the footer counters and the
+ * Debug Mode's one subscription to the feed: while it is open the trace, the footer counters and
+ * the
  * runner all read the same drained events. Closed, the feed publishes nothing. Main thread only.
  */
 class DebugHub(private val feed: EventFeed) {
@@ -52,6 +53,7 @@ class DebugHub(private val feed: EventFeed) {
     }
 
     /** Saved rows and the ones still on the list, newest first, each once. */
-    fun logRows(): List<TraceRow> =
-        (saved + trace.rows).distinct().sortedByDescending { it.timeMs }.take(AppLimits.ROUTE_TRACE_ROWS_MAX * 2)
+    fun logRows(): List<TraceRow> = (saved + trace.rows).distinct().sortedByDescending {
+        it.timeMs
+    }.take(AppLimits.ROUTE_TRACE_ROWS_MAX * 2)
 }

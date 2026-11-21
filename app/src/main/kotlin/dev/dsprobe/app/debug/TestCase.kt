@@ -9,7 +9,16 @@ enum class Kind { INPUT, OUTPUT, ROUTE }
 
 /** One per test, every test starting at [NOT_PROVEN]. */
 enum class Outcome {
-    NOT_PROVEN, PASSED, NOT_SEEN, CROSS_TALK, NOT_OFFERED, API_REJECTED, ACCEPTED_NO_EFFECT, CANT_TELL, ROUTE_UNAVAILABLE, SKIPPED,
+    NOT_PROVEN,
+    PASSED,
+    NOT_SEEN,
+    CROSS_TALK,
+    NOT_OFFERED,
+    API_REJECTED,
+    ACCEPTED_NO_EFFECT,
+    CANT_TELL,
+    ROUTE_UNAVAILABLE,
+    SKIPPED,
 }
 
 /** The ID of an input control, such as in.button.triangle. */
@@ -29,8 +38,10 @@ sealed interface Check {
 
 /**
  * One Debug Mode test. [promptRes] is a format string and [promptArg] its one argument.
- * [companions] are input IDs (matched by prefix) that move together with the target and are not cross-talk.
- * [feature] is the Android mode row that locks the test: a locked feature is NOT_OFFERED without a prompt.
+ * [companions] are input IDs (matched by prefix) that move together with the target and are not
+ * cross-talk.
+ * [feature] is the Android mode row that locks the test: a locked feature is NOT_OFFERED without a
+ * prompt.
  */
 data class TestCase(
     val id: String,

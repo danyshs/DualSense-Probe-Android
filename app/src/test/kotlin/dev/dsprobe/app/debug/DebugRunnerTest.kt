@@ -43,17 +43,55 @@ private class FakeEnv : RunnerEnv {
 
 private var clock = 0L
 
-private fun input(id: String, feature: Feature? = Feature.BUTTONS, route: Route = Route.ANDROID, companions: Set<InputId> = emptySet()) =
-    TestCase(id, route, Kind.INPUT, R.string.prompt_press, id, AppLimits.INPUT_TEST_TIMEOUT_MS, Check.AwaitInput(InputId(id)), companions, feature)
+private fun input(
+    id: String,
+    feature: Feature? = Feature.BUTTONS,
+    route: Route = Route.ANDROID,
+    companions: Set<InputId> = emptySet(),
+) = TestCase(
+    id, route, Kind.INPUT, R.string.prompt_press, id, AppLimits.INPUT_TEST_TIMEOUT_MS,
+    Check.AwaitInput(
+        InputId(id),
+    ),
+    companions, feature,
+)
 
-private fun output(id: String, req: OutputRequest, cleanup: OutputRequest? = null, route: Route = Route.ANDROID, feature: Feature? = null) =
-    TestCase(id, route, Kind.OUTPUT, R.string.prompt_watch, id, AppLimits.CONFIRM_TAP_TIMEOUT_MS, Check.SendOutput(req, cleanup), feature = feature)
+private fun output(
+    id: String,
+    req: OutputRequest,
+    cleanup: OutputRequest? = null,
+    route: Route = Route.ANDROID,
+    feature: Feature? = null,
+) = TestCase(
+    id,
+    route,
+    Kind.OUTPUT,
+    R.string.prompt_watch,
+    id,
+    AppLimits.CONFIRM_TAP_TIMEOUT_MS,
+    Check.SendOutput(req, cleanup),
+    feature = feature,
+)
 
-private fun routeStep(id: String, route: Route) =
-    TestCase(id, route, Kind.ROUTE, R.string.prompt_route_usb, "", AppLimits.ROUTE_SWITCH_TIMEOUT_MS, Check.AwaitRoute(route))
+private fun routeStep(id: String, route: Route) = TestCase(
+    id,
+    route,
+    Kind.ROUTE,
+    R.string.prompt_route_usb,
+    "",
+    AppLimits.ROUTE_SWITCH_TIMEOUT_MS,
+    Check.AwaitRoute(route),
+)
 
 private fun held(vararg b: Button, dpad: Dpad = Dpad.NONE, l2: Float = 0f, leftX: Float = 0f) =
-    FeedEvent(0L, Route.ANDROID, null, "x", "in.x", PadState.EMPTY.copy(held = b.toSet(), dpad = dpad, l2 = l2, leftX = leftX))
+    FeedEvent(
+        0L,
+        Route.ANDROID,
+        null,
+        "x",
+        "in.x",
+        PadState.EMPTY.copy(held = b.toSet(), dpad = dpad, l2 = l2, leftX = leftX),
+    )
 
 private val RED = OutputRequest.Lightbar(Rgb(255u, 0u, 0u))
 private val BLACK = OutputRequest.Lightbar(Rgb(0u, 0u, 0u))
@@ -72,7 +110,13 @@ class DebugRunnerTest {
         val r = runner(input("in.button.cross"), input("in.button.circle"))
         r.start()
         r.stop()
-        assertEquals(listOf("in.button.cross" to Outcome.SKIPPED, "in.button.circle" to Outcome.NOT_PROVEN), outcomes(r))
+        assertEquals(
+            listOf(
+                "in.button.cross" to Outcome.SKIPPED,
+                "in.button.circle" to Outcome.NOT_PROVEN,
+            ),
+            outcomes(r),
+        )
         assertEquals(Phase.DONE, r.phase)
     }
 
@@ -90,7 +134,10 @@ class DebugRunnerTest {
         r.onEvents(listOf(held()))
         r.onEvents(listOf(held(Button.CIRCLE)))
         assertEquals(Outcome.CROSS_TALK, r.results.single().outcome)
-        assertTrue(r.results.single().detail, r.results.single().detail.startsWith("in.button.circle"))
+        assertTrue(
+            r.results.single().detail,
+            r.results.single().detail.startsWith("in.button.circle"),
+        )
     }
 
     @Test fun aCompanionMovingWithTheTargetIsNotCrossTalk() {
@@ -103,7 +150,14 @@ class DebugRunnerTest {
     }
 
     @Test fun aStickPassesOnlyWhenBothEndsWereReached() {
-        val r = runner(input("in.stick.left.x", Feature.STICKS, companions = setOf(InputId("in.stick.left."))))
+        val r =
+            runner(
+                input(
+                    "in.stick.left.x",
+                    Feature.STICKS,
+                    companions = setOf(InputId("in.stick.left.")),
+                ),
+            )
         r.start()
         r.onEvents(listOf(held(leftX = 1f)))
         assertEquals(emptyList<Pair<String, Outcome>>(), outcomes(r))
@@ -172,7 +226,11 @@ class DebugRunnerTest {
     }
 
     @Test fun theDevelopersThreeAnswersMapToThreeOutcomes() {
-        val cases = listOf(Confirm.YES to Outcome.PASSED, Confirm.NO to Outcome.ACCEPTED_NO_EFFECT, Confirm.CANT_TELL to Outcome.CANT_TELL)
+        val cases = listOf(
+            Confirm.YES to Outcome.PASSED,
+            Confirm.NO to Outcome.ACCEPTED_NO_EFFECT,
+            Confirm.CANT_TELL to Outcome.CANT_TELL,
+        )
         for ((tap, expected) in cases) {
             env.sends.clear()
             val r = runner(output("out.lightbar.red", RED, BLACK))
@@ -180,7 +238,11 @@ class DebugRunnerTest {
             assertEquals(Phase.WAITING_CONFIRM, r.phase)
             r.confirm(tap)
             assertEquals(tap.name, expected, r.results.single().outcome)
-            assertEquals("the pad is put back after the answer", listOf<OutputRequest>(RED, BLACK), env.sends)
+            assertEquals(
+                "the pad is put back after the answer",
+                listOf<OutputRequest>(RED, BLACK),
+                env.sends,
+            )
         }
     }
 
@@ -204,7 +266,11 @@ class DebugRunnerTest {
 
     @Test fun theSwitchToDirectUsbAsksOnceAndLaterUsbTestsRunOnceItIsLive() {
         env.cameUp = true
-        val r = runner(routeStep("route.direct_usb", Route.DIRECT_USB), input("in.button.cross", route = Route.DIRECT_USB))
+        val r =
+            runner(
+                routeStep("route.direct_usb", Route.DIRECT_USB),
+                input("in.button.cross", route = Route.DIRECT_USB),
+            )
         r.start()
         assertEquals(listOf(Route.DIRECT_USB), env.routeRequests)
         assertEquals(listOf("route.direct_usb" to Outcome.PASSED), outcomes(r).take(1))
@@ -213,16 +279,28 @@ class DebugRunnerTest {
 
     @Test fun aSwitchThatNeverComesUpMakesEveryUsbTestRouteUnavailable() {
         env.cameUp = false
-        val r = runner(routeStep("route.direct_usb", Route.DIRECT_USB), input("in.button.cross", route = Route.DIRECT_USB), output("out.lightbar.red", RED, route = Route.DIRECT_USB))
+        val r =
+            runner(
+                routeStep("route.direct_usb", Route.DIRECT_USB),
+                input("in.button.cross", route = Route.DIRECT_USB),
+                output("out.lightbar.red", RED, route = Route.DIRECT_USB),
+            )
         r.start()
         assertEquals(Phase.WAITING_ROUTE, r.phase)
         clock = AppLimits.ROUTE_SWITCH_TIMEOUT_MS
         r.tick()
         assertEquals(
-            listOf("route.direct_usb", "in.button.cross", "out.lightbar.red").map { it to Outcome.ROUTE_UNAVAILABLE },
+            listOf("route.direct_usb", "in.button.cross", "out.lightbar.red").map {
+                it to
+                    Outcome.ROUTE_UNAVAILABLE
+            },
             outcomes(r),
         )
-        assertEquals("nothing was sent to a route that is not live", emptyList<OutputRequest>(), env.sends)
+        assertEquals(
+            "nothing was sent to a route that is not live",
+            emptyList<OutputRequest>(),
+            env.sends,
+        )
     }
 
     @Test fun anAndroidTestWhileTheRouteIsNotAndroidIsRouteUnavailable() {
@@ -238,7 +316,13 @@ class DebugRunnerTest {
         clock = AppLimits.DEBUG_RUN_MS_MAX + 1
         r.tick()
         assertEquals(Phase.DONE, r.phase)
-        assertEquals(listOf("in.button.cross" to Outcome.NOT_PROVEN, "in.button.circle" to Outcome.NOT_PROVEN), outcomes(r))
+        assertEquals(
+            listOf(
+                "in.button.cross" to Outcome.NOT_PROVEN,
+                "in.button.circle" to Outcome.NOT_PROVEN,
+            ),
+            outcomes(r),
+        )
     }
 
     @Test fun skipRecordsSkippedAndMovesOn() {
@@ -253,12 +337,37 @@ class DebugRunnerTest {
         val r = runner(input("in.button.cross"), output("out.lightbar.red", RED, BLACK))
         r.start()
         val raw = ByteArray(64) { 1 }
-        r.onEvents((0 until AppLimits.RAW_REPORTS_PER_TEST_MAX + 10).map { FeedEvent(0L, Route.DIRECT_USB, raw.copyOf().also { b -> b[7] = it.toByte() }, null) })
+        r.onEvents(
+            (0 until AppLimits.RAW_REPORTS_PER_TEST_MAX + 10).map {
+                FeedEvent(
+                    0L,
+                    Route.DIRECT_USB,
+                    raw.copyOf().also { b ->
+                        b[7] =
+                            it.toByte()
+                    },
+                    null,
+                )
+            },
+        )
         r.onEvents(listOf(held(Button.CROSS)))
         val first = r.results.single()
         assertEquals(AppLimits.RAW_REPORTS_PER_TEST_MAX, first.rawHex.size)
-        assertTrue("the newest report is kept", first.rawHex.last().split(" ")[7] == "%02x".format(AppLimits.RAW_REPORTS_PER_TEST_MAX + 9))
-        r.onEvents(listOf(FeedEvent(0L, Route.DIRECT_USB, ByteArray(63) { 2 }, "row", "out.lightbar")))
+        val newest = "%02x".format(AppLimits.RAW_REPORTS_PER_TEST_MAX + 9)
+        assertTrue("the newest report is kept", first.rawHex.last().split(" ")[7] == newest)
+        r.onEvents(
+            listOf(
+                FeedEvent(
+                    0L,
+                    Route.DIRECT_USB,
+                    ByteArray(63) {
+                        2
+                    },
+                    "row",
+                    "out.lightbar",
+                ),
+            ),
+        )
         assertEquals(1, r.current?.let { 1 } ?: 0)
         r.confirm(Confirm.YES)
         assertEquals(1, r.results[1].sentHex.size)

@@ -20,8 +20,17 @@ fun TooManyScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(stringResource(R.string.route_android), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(stringResource(R.string.too_many_title), style = MaterialTheme.typography.headlineLarge)
-        Text(stringResource(R.string.too_many_body), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            stringResource(R.string.route_android),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            stringResource(R.string.too_many_title),
+            style = MaterialTheme.typography.headlineLarge,
+        )
+        Text(
+            stringResource(R.string.too_many_body),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

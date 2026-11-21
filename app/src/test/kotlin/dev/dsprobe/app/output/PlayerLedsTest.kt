@@ -30,11 +30,13 @@ class PlayerLedsTest {
         assertEquals("0b00011111 = 0x1f, LEDs 1, 2, 3, 4, 5", ledMaskText(0x1f))
     }
 
-    @Test(expected = IllegalArgumentException::class) fun aMaskPastFiveBitsIsRefused() {
+    @Test(expected = IllegalArgumentException::class)
+    fun aMaskPastFiveBitsIsRefused() {
         maskToLeds(0x20)
     }
 
-    @Test(expected = IllegalArgumentException::class) fun aSixthDotIsRefused() {
+    @Test(expected = IllegalArgumentException::class)
+    fun aSixthDotIsRefused() {
         ledsToMask(List(6) { false })
     }
 }

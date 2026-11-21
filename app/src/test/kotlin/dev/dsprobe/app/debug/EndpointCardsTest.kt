@@ -1,9 +1,9 @@
 package dev.dsprobe.app.debug
 
+import dev.dsprobe.app.output.ledMaskText
 import dev.dsprobe.pad.INPUT_MAP
 import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.OutputField
-import dev.dsprobe.app.output.ledMaskText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -48,9 +48,20 @@ class EndpointCardsTest {
                 free[b] = range.mask
             }
         }
-        for (b in 1 until Limits.USB_INPUT_REPORT_BYTES) assertEquals("byte $b", 0xff and claimed[b].inv(), free[b])
+        for (b in 1 until Limits.USB_INPUT_REPORT_BYTES) {
+            assertEquals(
+                "byte $b",
+                0xff and claimed[b].inv(),
+                free[b],
+            )
+        }
         val whole = unclaimedRanges().filter { it.mask == 0xff }
-        for ((a, b) in whole.zipWithNext()) assertTrue("ranges ${a.first}-${a.last} and ${b.first}-${b.last} should be one", b.first > a.last + 1)
+        for ((a, b) in whole.zipWithNext()) {
+            assertTrue(
+                "ranges ${a.first}-${a.last} and ${b.first}-${b.last} should be one",
+                b.first > a.last + 1,
+            )
+        }
         assertEquals(0, free[0])
         val rangeCards = cards.filter { it.kind == CardKind.INPUT_RANGE }
         assertEquals(unclaimedRanges().size, rangeCards.size)
@@ -59,7 +70,12 @@ class EndpointCardsTest {
 
     @Test fun everyOutputFieldAndTheFirmwareReportHaveACard() {
         val ids = cards.map { it.id }.toSet()
-        for (field in OutputField.entries) assertTrue(field.name, "out.${field.name.lowercase()}" in ids)
+        for (field in OutputField.entries) {
+            assertTrue(
+                field.name,
+                "out.${field.name.lowercase()}" in ids,
+            )
+        }
         assertTrue("feature.0x20" in ids)
         assertTrue(cards.any { it.kind == CardKind.ANDROID })
     }
@@ -74,21 +90,45 @@ class EndpointCardsTest {
                 continue
             }
             val confirmed = checkNotNull(facts[row]) { "${card.id} cites $row, not in FACTS.md" }
-            assertEquals("${card.id} ($row: $confirmed)", confidenceFromConfirmed(confirmed), card.confidence)
+            assertEquals(
+                "${card.id} ($row: $confirmed)",
+                confidenceFromConfirmed(confirmed),
+                card.confidence,
+            )
         }
-        for ((row, tag) in ROW_CONFIDENCE) assertEquals(row, confidenceFromConfirmed(checkNotNull(facts[row]) { row }), tag)
+        for ((row, tag) in ROW_CONFIDENCE) {
+            assertEquals(
+                row,
+                confidenceFromConfirmed(
+                    checkNotNull(facts[row]) {
+                        row
+                    },
+                ),
+                tag,
+            )
+        }
     }
 
     @Test fun anUnknownCardAsksToWatchAndSaysWhichByteToShow() {
         val unknown = cards.filter { it.confidence == Confidence.UNKNOWN }
         assertTrue(unknown.isNotEmpty())
         for (card in unknown) {
-            assertTrue(card.id, card.rawByte >= 1 && card.guess.contains("Try: tilt, press every button, touch the pad, plug headphones. Watch the value."))
+            assertTrue(
+                card.id,
+                card.rawByte >= 1 &&
+                    card.guess.contains(
+                        "Try: tilt, press every button, touch the pad, plug headphones. Watch " +
+                            "the value.",
+                    ),
+            )
         }
     }
 
     @Test fun everyInputCardHasItsOwnGuessAndNoTwoShareOneText() {
-        val inputs = cards.filter { it.kind == CardKind.INPUT_FIELD || it.kind == CardKind.INPUT_RANGE }
+        val inputs = cards.filter {
+            it.kind == CardKind.INPUT_FIELD ||
+                it.kind == CardKind.INPUT_RANGE
+        }
         assertTrue(inputs.size > 50)
         assertEquals("guess texts repeat", inputs.size, inputs.map { it.guess }.toSet().size)
         assertEquals("titles repeat", inputs.size, inputs.map { it.title }.toSet().size)
@@ -100,7 +140,10 @@ class EndpointCardsTest {
             val guess = checkNotNull(INPUT_GUESSES[src.id]) { src.id }
             assertTrue("${src.id} has no move text", guess.move.length > 8)
             val card = cards.single { it.id == src.id }
-            assertTrue("${src.id}: the card text must end with how to move it", card.guess.endsWith(guess.move))
+            assertTrue(
+                "${src.id}: the card text must end with how to move it",
+                card.guess.endsWith(guess.move),
+            )
         }
         assertEquals(INPUT_MAP.map { it.id }.toSet(), INPUT_GUESSES.keys)
     }
@@ -108,42 +151,85 @@ class EndpointCardsTest {
     @Test fun theStickAndLedExamplesReadAsTheSpecSaysTheyShould() {
         val stick = cards.single { it.id == "in.stick.left.x" }
         assertEquals("Left stick, left↔right", stick.title)
-        assertTrue(stick.guess, "0 = full left, 128 = centre, 255 = full right." in stick.guess && stick.guess.endsWith("Push the left stick sideways."))
+        assertTrue(stick.guess, "0 = full left, 128 = centre, 255 = full right." in stick.guess)
+        assertTrue(stick.guess, stick.guess.endsWith("Push the left stick sideways."))
     }
 
     @Test fun everyCardHasATryItActionOrAStatedReason() {
         for (card in cards) {
             when (val tryIt = card.tryIt) {
-                is TryIt.Reason -> assertTrue("${card.id} has an empty reason", tryIt.text.length > 10)
-                is TryIt.Action -> if (tryIt.kind !in setOf(TryKind.MIC, TryKind.SPEAKER, TryKind.HEADPHONES)) assertTrue(card.id, tryIt.choices.isNotEmpty())
+                is TryIt.Reason -> assertTrue(
+                    "${card.id} has an empty reason",
+                    tryIt.text.length > 10,
+                )
+
+                is TryIt.Action -> if (tryIt.kind !in
+                    setOf(TryKind.MIC, TryKind.SPEAKER, TryKind.HEADPHONES)
+                ) {
+                    assertTrue(card.id, tryIt.choices.isNotEmpty())
+                }
             }
         }
     }
 
     @Test fun everyNonButtonOutputAndAudioCardTheAppCanDriveHasAnAction() {
         val driven = mapOf(
-            "out.rumble" to TryKind.RUMBLE, "out.right_trigger" to TryKind.TRIGGERS, "out.left_trigger" to TryKind.TRIGGERS,
-            "out.lightbar" to TryKind.LIGHTBAR, "out.player_leds" to TryKind.PLAYER_LEDS, "out.mute_led" to TryKind.MUTE_LED,
-            "out.rumble_both_modes" to TryKind.ALL_OFF, "audio.mic" to TryKind.MIC, "audio.speaker" to TryKind.SPEAKER, "audio.headphones" to TryKind.HEADPHONES,
+            "out.rumble" to TryKind.RUMBLE, "out.right_trigger" to TryKind.TRIGGERS,
+            "out.left_trigger" to TryKind.TRIGGERS,
+            "out.lightbar" to TryKind.LIGHTBAR, "out.player_leds" to TryKind.PLAYER_LEDS,
+            "out.mute_led" to TryKind.MUTE_LED,
+            "out.rumble_both_modes" to TryKind.ALL_OFF, "audio.mic" to TryKind.MIC,
+            "audio.speaker" to TryKind.SPEAKER, "audio.headphones" to TryKind.HEADPHONES,
             "android.vibrator.0" to TryKind.RUMBLE, "android.vibrator.1" to TryKind.RUMBLE,
-            "android.light.indicator" to TryKind.LIGHTBAR, "android.light.player" to TryKind.PLAYER_LEDS,
+            "android.light.indicator" to TryKind.LIGHTBAR,
+            "android.light.player" to TryKind.PLAYER_LEDS,
         )
         for ((id, kind) in driven) {
             val action = cards.single { it.id == id }.tryIt
             assertEquals(id, kind, (action as TryIt.Action).kind)
         }
-        for (field in OutputField.entries) assertTrue(field.name, cards.any { it.id == "out.${field.name.lowercase()}" })
+        for (field in OutputField.entries) {
+            assertTrue(
+                field.name,
+                cards.any {
+                    it.id ==
+                        "out.${field.name.lowercase()}"
+                },
+            )
+        }
     }
 
     @Test fun inputsAreStatedAsHandDrivenAndHdHapticsSaysWhyItCannotRun() {
-        assertEquals(HAND_REASON, (cards.single { it.id == "in.stick.left.x" }.tryIt as TryIt.Reason).text)
-        assertTrue((cards.single { it.id == "audio.haptics" }.tryIt as TryIt.Reason).text.contains("audio step, not built yet"))
+        assertEquals(
+            HAND_REASON,
+            (
+                cards.single {
+                    it.id == "in.stick.left.x"
+                }.tryIt as TryIt.Reason
+                ).text,
+        )
+        assertTrue(
+            (
+                cards.single {
+                    it.id == "audio.haptics"
+                }.tryIt as TryIt.Reason
+                ).text.contains("audio step, not built yet"),
+        )
         assertTrue(AUDIO_STEP_REASON.contains("needs the audio step, not built yet"))
     }
 
     @Test fun theLocationLineOfAPlayerLedCardCarriesTheLiveByte() {
         val leds = cards.single { it.id == "out.player_leds" }
         assertTrue(locationLine(leds, 0x10).endsWith("0b00010000 = 0x10, LED 5"))
-        assertEquals(cards.single { it.id == "out.lightbar" }.where, locationLine(cards.single { it.id == "out.lightbar" }, 0x10))
+        assertEquals(
+            cards.single { it.id == "out.lightbar" }.where,
+            locationLine(
+                cards.single {
+                    it.id ==
+                        "out.lightbar"
+                },
+                0x10,
+            ),
+        )
     }
 }

@@ -1,6 +1,8 @@
 package dev.dsprobe.pad
 
-/** Raw int16 triple as the pad sends it; per-axis meaning, sign and scale are not facts yet (P16). */
+/**
+ * Raw int16 triple as the pad sends it; per-axis meaning, sign and scale are not facts yet (P16).
+ */
 data class Vec3Raw(val x: Short, val y: Short, val z: Short)
 
 /** One finger: contact id, position in touchpad pixels (0-1919, 0-1079). */

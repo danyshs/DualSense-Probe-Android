@@ -3,9 +3,19 @@ package dev.dsprobe.app.debug
 import dev.dsprobe.app.route.Route
 import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.OutputField
+import dev.dsprobe.pad.u8
 
-/** One group of an output report: its valid-flag bit, the value bytes that bit enables, and the FACTS row. */
-data class FlagGroup(val flagByte: Int, val flagBit: Int, val label: String, val valueOffsets: List<Int>, val factsRow: String)
+/**
+ * One group of an output report: its valid-flag bit, the value bytes that bit enables, and the
+ * FACTS row.
+ */
+data class FlagGroup(
+    val flagByte: Int,
+    val flagBit: Int,
+    val label: String,
+    val valueOffsets: List<Int>,
+    val factsRow: String,
+)
 
 private const val FLAG0_BYTE = 1
 private const val FLAG1_BYTE = 2
@@ -16,7 +26,10 @@ private const val LEFT_TRIGGER_FIRST = 22
 
 private fun trigger(first: Int) = (first until first + Limits.TRIGGER_EFFECT_BYTES_MAX).toList()
 
-/** The valid-flag bits the app uses (P30-P43) and the bytes each one enables. Data, not code: the trace and its test read the same table. */
+/**
+ * The valid-flag bits the app uses (P30-P43) and the bytes each one enables. Data, not code: the
+ * trace and its test read the same table.
+ */
 val OUTPUT_FLAG_GROUPS: List<FlagGroup> = listOf(
     FlagGroup(FLAG0_BYTE, 0x01, "compatible vibration", emptyList(), "P31"),
     FlagGroup(FLAG0_BYTE, 0x02, "motors (3 right, 4 left)", listOf(3, 4), "P31"),
@@ -34,27 +47,36 @@ val OUTPUT_FLAG_GROUPS: List<FlagGroup> = listOf(
     FlagGroup(FLAG2_BYTE, 0x04, "vibration v2", emptyList(), "P31"),
 )
 
-private val FLAG_BYTE_NAMES = mapOf(FLAG0_BYTE to "flag0", FLAG1_BYTE to "flag1", FLAG2_BYTE to "flag2")
+private val FLAG_BYTE_NAMES = mapOf(
+    FLAG0_BYTE to "flag0",
+    FLAG1_BYTE to "flag1",
+    FLAG2_BYTE to "flag2",
+)
 
 /** [offset] went from [old] to [new]. */
 data class ByteChange(val offset: Int, val old: Int, val new: Int)
 
-private fun u8(r: ByteArray, i: Int): Int = r[i].toInt() and 0xff
-
-private fun isSet(group: FlagGroup, report: ByteArray): Boolean = u8(report, group.flagByte) and group.flagBit != 0
+private fun isSet(group: FlagGroup, report: ByteArray): Boolean =
+    report.u8(group.flagByte) and group.flagBit != 0
 
 private fun checkReport(report: ByteArray) {
-    require(report.size == Limits.USB_OUTPUT_REPORT_BYTES) { "output report is ${report.size} bytes" }
-    require(u8(report, 0) == REPORT_ID_OUTPUT) { "output report id" }
+    require(report.size == Limits.USB_OUTPUT_REPORT_BYTES) {
+        "output report is ${report.size} bytes"
+    }
+    require(report.u8(0) == REPORT_ID_OUTPUT) { "output report id" }
 }
 
-/** Valid-flag bits set in [report] that no group names: they would be a byte the table cannot explain. */
+/**
+ * Valid-flag bits set in [report] that no group names: they would be a byte the table cannot
+ * explain.
+ */
 fun unknownFlagBits(report: ByteArray): List<String> {
     checkReport(report)
     val out = ArrayList<String>()
     for ((byteIndex, name) in FLAG_BYTE_NAMES) {
-        val known = OUTPUT_FLAG_GROUPS.filter { it.flagByte == byteIndex }.fold(0) { acc, g -> acc or g.flagBit }
-        val unknown = u8(report, byteIndex) and known.inv()
+        val groups = OUTPUT_FLAG_GROUPS.filter { it.flagByte == byteIndex }
+        val known = groups.fold(0) { acc, g -> acc or g.flagBit }
+        val unknown = report.u8(byteIndex) and known.inv()
         if (unknown != 0) out.add("$name byte $byteIndex bits 0x%02x".format(unknown))
     }
     return out
@@ -71,7 +93,9 @@ class UsbOutputTrace {
         for (group in OUTPUT_FLAG_GROUPS) {
             if (!isSet(group, report)) continue
             for (offset in group.valueOffsets) {
-                if (u8(report, offset) != u8(shadow, offset)) changes.add(ByteChange(offset, u8(shadow, offset), u8(report, offset)))
+                if (report.u8(offset) != shadow.u8(offset)) {
+                    changes.add(ByteChange(offset, shadow.u8(offset), report.u8(offset)))
+                }
             }
         }
         check(changes.size <= Limits.USB_OUTPUT_REPORT_BYTES) { "more changes than bytes" }
@@ -82,7 +106,12 @@ class UsbOutputTrace {
     fun commit(report: ByteArray) {
         checkReport(report)
         for (group in OUTPUT_FLAG_GROUPS) {
-            if (isSet(group, report)) for (offset in group.valueOffsets) shadow[offset] = report[offset]
+            if (isSet(group, report)) {
+                for (offset in group.valueOffsets) {
+                    shadow[offset] =
+                        report[offset]
+                }
+            }
         }
     }
 
@@ -96,10 +125,22 @@ class UsbOutputTrace {
         if (send.isResend && changes.isEmpty()) return null
         val control = controlOfFields(send.fields, send.isFinal)
         val result = if (send.ok) "sent ok" else "NOT taken by bulkTransfer"
-        val detail = "request ${send.request}  fields ${send.fields.joinToString("+")}  report 0x02 ${changesText(changes)}  " +
-            "flags ${flagsText(send.report)}  ${send.report.size} bytes $result"
-        val location = "report 0x02 · ${changesText(changes)} · flags ${flagsText(send.report)} · ${send.report.size} bytes · $result"
-        return TraceRow(timeMs, Route.DIRECT_USB, control, traceLine(control, Route.DIRECT_USB, detail), "$control  ${send.request}", location)
+        val detail =
+            "request ${send.request}  fields ${send.fields.joinToString(
+                "+",
+            )}  report 0x02 ${changesText(changes)}  " +
+                "flags ${flagsText(send.report)}  ${send.report.size} bytes $result"
+        val location = "report 0x02 · ${changesText(
+            changes,
+        )} · flags ${flagsText(send.report)} · ${send.report.size} bytes · $result"
+        return TraceRow(
+            timeMs,
+            Route.DIRECT_USB,
+            control,
+            traceLine(control, Route.DIRECT_USB, detail),
+            "$control  ${send.request}",
+            location,
+        )
     }
 }
 
@@ -113,18 +154,27 @@ class UsbSend(
     val isResend: Boolean,
 )
 
-private fun changesText(changes: List<ByteChange>): String =
-    if (changes.isEmpty()) "no value byte changed" else "bytes " + changes.joinToString(", ") { "%d: %02x -> %02x".format(it.offset, it.old, it.new) }
+private fun changesText(changes: List<ByteChange>): String = if (changes.isEmpty()) {
+    "no value byte changed"
+} else {
+    "bytes " +
+        changes.joinToString(", ") { "%d: %02x -> %02x".format(it.offset, it.old, it.new) }
+}
 
 private fun flagsText(report: ByteArray): String {
     val parts = OUTPUT_FLAG_GROUPS.filter { isSet(it, report) }.map {
-        "byte ${it.flagByte} (${FLAG_BYTE_NAMES.getValue(it.flagByte)}) bit 0x%02x ${it.label} [${it.factsRow}]".format(it.flagBit)
+        "byte ${it.flagByte} (${FLAG_BYTE_NAMES.getValue(
+            it.flagByte,
+        )}) bit 0x%02x ${it.label} [${it.factsRow}]".format(it.flagBit)
     }
     val unknown = unknownFlagBits(report)
     return (parts + unknown.map { "UNKNOWN $it" }).joinToString("; ").ifEmpty { "none" }
 }
 
-/** The control ID a send belongs to: the one field, "out.release" for the all-off report, else "out.multi". */
+/**
+ * The control ID a send belongs to: the one field, "out.release" for the all-off report, else
+ * "out.multi".
+ */
 fun controlOfFields(fields: Set<OutputField>, isFinal: Boolean): String {
     if (isFinal) return "out.release"
     if (fields.size != 1) return "out.multi"

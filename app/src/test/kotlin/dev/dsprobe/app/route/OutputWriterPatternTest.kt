@@ -18,15 +18,22 @@ private class PatternRig {
     var now = START_MS
     val sentAt = ArrayList<Long>()
     val sent = ArrayList<ByteArray>()
-    val writer = OutputWriter({ sentAt.add(now); sent.add(it.copyOf()); true }, { now }, {}, {})
+    val writer = OutputWriter({
+        sentAt.add(now)
+        sent.add(it.copyOf())
+        true
+    }, { now }, {}, {})
 
     fun golden(name: String) = TestFixtures.bytes("golden/$name.hex")
 
-    /** Runs the writer up to [untilMs] on the fake clock, moving only to the times it asks to wake at. */
+    /**
+     * Runs the writer up to [untilMs] on the fake clock, moving only to the times it asks to wake
+     * at.
+     */
     fun runUntil(untilMs: Long) {
-        for (pass in 0 until PASSES_MAX) {
+        repeat(PASSES_MAX) {
             val wait = writer.pumpOnce() ?: return
-            if (wait == 0L) continue
+            if (wait == 0L) return@repeat
             if (now + wait > untilMs) {
                 now = untilMs
                 return
@@ -40,17 +47,26 @@ private class PatternRig {
 class OutputWriterPatternTest {
     private val rig = PatternRig()
     private val w get() = rig.writer
-    private val threeStep = listOf(RumbleStep(HALF, HALF, 100), RumbleStep(0, 0, 100), RumbleStep(HALF, HALF, 100))
+    private val threeStep =
+        listOf(RumbleStep(HALF, HALF, 100), RumbleStep(0, 0, 100), RumbleStep(HALF, HALF, 100))
 
     @Test fun eachStepGoesOutWhenItsTimeComesAndTheEndIsRumbleOff() {
         assertTrue(w.playRumble(threeStep))
         rig.runUntil(START_MS + 350)
-        assertEquals(listOf(START_MS, START_MS + 100, START_MS + 200, START_MS + 300), rig.sentAt.take(4))
+        assertEquals(
+            listOf(START_MS, START_MS + 100, START_MS + 200, START_MS + 300),
+            rig.sentAt.take(4),
+        )
         assertArrayEquals(rig.golden("rumble-both"), rig.sent[0])
         assertArrayEquals(rig.golden("rumble-off"), rig.sent[1])
         assertArrayEquals(rig.golden("rumble-both"), rig.sent[2])
         assertArrayEquals(rig.golden("rumble-off"), rig.sent[3])
-        assertTrue("nothing after the end but zeros", rig.sent.drop(3).all { it.contentEquals(rig.golden("rumble-off")) })
+        assertTrue(
+            "nothing after the end but zeros",
+            rig.sent.drop(3).all {
+                it.contentEquals(rig.golden("rumble-off"))
+            },
+        )
     }
 
     @Test fun theWriterNeverSleepsPastTheNextStep() {
@@ -76,7 +92,12 @@ class OutputWriterPatternTest {
         rig.now += Limits.OUTPUT_INTERVAL_MS_MIN
         w.setRumble(0u, 0u, 1)
         rig.runUntil(START_MS + 400)
-        assertTrue("no rumble-both after the stop", rig.sent.drop(1).none { it.contentEquals(rig.golden("rumble-both")) })
+        assertTrue(
+            "no rumble-both after the stop",
+            rig.sent.drop(1).none {
+                it.contentEquals(rig.golden("rumble-both"))
+            },
+        )
     }
 
     @Test fun aPatternLongerThanTheCapIsRefusedAndSendsNothing() {
@@ -101,9 +122,11 @@ class OutputWriterPatternTest {
         w.pumpOnce()
         rig.now += 100
         w.finish()
-        for (pass in 0 until PASSES_MAX) {
-            rig.now += Limits.OUTPUT_INTERVAL_MS_MIN
-            if (w.pumpOnce() == null) break
+        run {
+            repeat(PASSES_MAX) {
+                rig.now += Limits.OUTPUT_INTERVAL_MS_MIN
+                if (w.pumpOnce() == null) return@run
+            }
         }
         assertArrayEquals(TestFixtures.allOffGolden, rig.sent.last())
         val count = rig.sent.size

@@ -32,7 +32,7 @@ class AudioFramesTest {
     @Test fun toneStaysUnderTheAmplitudeCapAndHasTheRightPitch() {
         val pcm = toneFrames(480, 0.25f, front, 4_800) // 480 Hz: exactly 48 cycles in 100 ms
         val (peak, rms) = peakAndRms(pcm, channel = 0, channelCount = 4)
-        assertTrue("peak ${peak}", peak in 8_000..8_192)
+        assertTrue("peak $peak", peak in 8_000..8_192)
         assertEquals(peak / Math.sqrt(2.0), rms, peak * 0.01)
         var crossings = 0
         for (f in 1 until 4_800) if (pcm[(f - 1) * 4] < 0 && pcm[f * 4] >= 0) crossings++
@@ -49,7 +49,9 @@ class AudioFramesTest {
         assertThrows(IllegalArgumentException::class.java) { toneFrames(24_000, 0.1f, front, 10) }
         assertThrows(IllegalArgumentException::class.java) { toneFrames(440, 0.26f, front, 10) }
         assertThrows(IllegalArgumentException::class.java) { toneFrames(440, -0.1f, front, 10) }
-        assertThrows(IllegalArgumentException::class.java) { toneFrames(440, 0.1f, ChannelMask(16), 10) }
+        assertThrows(IllegalArgumentException::class.java) {
+            toneFrames(440, 0.1f, ChannelMask(16), 10)
+        }
         assertThrows(IllegalArgumentException::class.java) { toneFrames(440, 0.1f, front, 0) }
         assertThrows(IllegalArgumentException::class.java) { toneFrames(440, 0.1f, front, cap + 1) }
         assertEquals(cap * 4, toneFrames(440, 0.1f, front, cap).size)

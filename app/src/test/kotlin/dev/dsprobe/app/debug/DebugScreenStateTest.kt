@@ -24,14 +24,26 @@ private class QuietEnv(var route: Route? = Route.ANDROID) : RunnerEnv {
 
 private var now = 0L
 
-private fun press(id: String, route: Route) =
-    TestCase(id, route, Kind.INPUT, R.string.prompt_press, id, AppLimits.INPUT_TEST_TIMEOUT_MS, Check.AwaitInput(InputId(id)), feature = Feature.BUTTONS)
+private fun press(id: String, route: Route) = TestCase(
+    id,
+    route,
+    Kind.INPUT,
+    R.string.prompt_press,
+    id,
+    AppLimits.INPUT_TEST_TIMEOUT_MS,
+    Check.AwaitInput(InputId(id)),
+    feature = Feature.BUTTONS,
+)
 
-/** The "Run All Tests" tap showed nothing: the screen could not see the runner change. These read the runner the way a screen does. */
+/**
+ * The "Run All Tests" tap showed nothing: the screen could not see the runner change. These read
+ * the runner the way a screen does.
+ */
 class DebugScreenStateTest {
     @Test fun startingARunChangesStateTheScreenReads() {
         now = 0L
-        val runner = DebugRunner(listOf(press("in.button.cross", Route.ANDROID)), QuietEnv()) { now }
+        val runner =
+            DebugRunner(listOf(press("in.button.cross", Route.ANDROID)), QuietEnv()) { now }
         val read = HashSet<Any>()
         val snapshot = Snapshot.takeSnapshot(readObserver = { read.add(it) })
         try {
@@ -58,7 +70,16 @@ class DebugScreenStateTest {
 
     @Test fun aTestThatCannotRunSaysSoForAMomentThenTheNoteGoes() {
         now = 0L
-        val runner = DebugRunner(listOf(press("in.button.cross", Route.DIRECT_USB), press("in.button.circle", Route.ANDROID)), QuietEnv()) { now }
+        val runner =
+            DebugRunner(
+                listOf(
+                    press("in.button.cross", Route.DIRECT_USB),
+                    press("in.button.circle", Route.ANDROID),
+                ),
+                QuietEnv(),
+            ) {
+                now
+            }
         runner.start()
         val note = runner.notice
         assertNotNull(note)

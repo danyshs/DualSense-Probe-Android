@@ -12,11 +12,19 @@ class InputParserTest {
 
     private fun assertNoCrossTalk(name: String) {
         val p = Fixtures.parsed(name)
-        for ((got, base) in listOf(p.leftX to idle.leftX, p.leftY to idle.leftY, p.rightX to idle.rightX, p.rightY to idle.rightY)) {
-            assertTrue("${name}: stick moved ${got} vs ${base}", kotlin.math.abs(got.toInt() - base.toInt()) <= CROSS_TALK_THRESHOLD_COUNTS)
+        for ((got, base) in listOf(
+            p.leftX to idle.leftX,
+            p.leftY to idle.leftY,
+            p.rightX to idle.rightX,
+            p.rightY to idle.rightY,
+        )) {
+            assertTrue(
+                "$name: stick moved $got vs $base",
+                kotlin.math.abs(got.toInt() - base.toInt()) <= CROSS_TALK_THRESHOLD_COUNTS,
+            )
         }
-        assertEquals("${name}: dpad", Dpad.NONE, p.dpad)
-        assertTrue("${name}: touches", p.touches.isEmpty())
+        assertEquals("$name: dpad", Dpad.NONE, p.dpad)
+        assertTrue("$name: touches", p.touches.isEmpty())
     }
 
     @Test fun idleReadsAsNothingPressed() {
@@ -25,31 +33,46 @@ class InputParserTest {
         assertEquals(0u.toUByte(), idle.l2)
         assertEquals(0u.toUByte(), idle.r2)
         assertTrue(idle.touches.isEmpty())
-        assertEquals(listOf(0x7a, 0x84, 0x7e, 0x81), listOf(idle.leftX, idle.leftY, idle.rightX, idle.rightY).map { it.toInt() })
+        assertEquals(
+            listOf(0x7a, 0x84, 0x7e, 0x81),
+            listOf(idle.leftX, idle.leftY, idle.rightX, idle.rightY).map {
+                it.toInt()
+            },
+        )
     }
 
     @Test fun eachSingleButtonFixtureHoldsOnlyThatButton() {
         val cases = mapOf(
-            "square" to Button.SQUARE, "cross" to Button.CROSS, "circle" to Button.CIRCLE, "triangle" to Button.TRIANGLE,
-            "l1" to Button.L1, "r1" to Button.R1, "l2-button" to Button.L2, "r2-button" to Button.R2,
-            "create" to Button.CREATE, "options" to Button.OPTIONS, "l3" to Button.L3, "r3" to Button.R3,
+            "square" to Button.SQUARE, "cross" to Button.CROSS, "circle" to Button.CIRCLE,
+            "triangle" to Button.TRIANGLE,
+            "l1" to Button.L1, "r1" to Button.R1, "l2-button" to Button.L2,
+            "r2-button" to Button.R2,
+            "create" to Button.CREATE, "options" to Button.OPTIONS, "l3" to Button.L3,
+            "r3" to Button.R3,
             "ps" to Button.PS, "mute" to Button.MUTE,
         )
         assertEquals(14, cases.size)
         for ((file, button) in cases) {
             assertEquals(file, setOf(button), held(file))
-            assertTrue("${file}: dpad", Fixtures.parsed(file).dpad == Dpad.NONE)
+            assertTrue("$file: dpad", Fixtures.parsed(file).dpad == Dpad.NONE)
         }
     }
 
     @Test fun buttonFixturesShowNoStrayStickOrTouch() {
-        for (file in listOf("square", "cross", "circle", "triangle", "l1", "r1", "l2-button", "r2-button", "options", "ps")) {
+        val buttons = listOf(
+            "square", "cross", "circle", "triangle", "l1", "r1", "l2-button", "r2-button",
+            "options", "ps",
+        )
+        for (file in buttons) {
             assertNoCrossTalk(file)
         }
     }
 
     @Test fun touchpadClickFixtureHasTheClickBitAmongTheTriggersTheUserHeld() {
-        assertEquals(setOf(Button.L1, Button.L2, Button.R2, Button.TOUCHPAD_CLICK), held("touchpad-click"))
+        assertEquals(
+            setOf(Button.L1, Button.L2, Button.R2, Button.TOUCHPAD_CLICK),
+            held("touchpad-click"),
+        )
     }
 
     @Test fun analogTriggers() {
@@ -72,7 +95,16 @@ class InputParserTest {
         assertEquals(0x05, Fixtures.parsed("right-x-min").rightX.toInt())
         assertEquals(0xfb, Fixtures.parsed("right-y-max").rightY.toInt())
         assertEquals(0x04, Fixtures.parsed("right-y-min").rightY.toInt())
-        for (f in listOf("left-x-max", "left-x-min", "left-y-max", "left-y-min", "right-x-max", "right-x-min", "right-y-max", "right-y-min")) {
+        for (f in listOf(
+            "left-x-max",
+            "left-x-min",
+            "left-y-max",
+            "left-y-min",
+            "right-x-max",
+            "right-x-min",
+            "right-y-max",
+            "right-y-min",
+        )) {
             assertEquals(f, emptySet<Button>(), held(f))
         }
     }
@@ -88,7 +120,10 @@ class InputParserTest {
     }
 
     @Test fun dpadNorthWestFixtureAlsoHasTriangleAndShouldersHeld() {
-        assertEquals(setOf(Button.TRIANGLE, Button.L1, Button.R1, Button.L2, Button.R2), held("dpad-nw"))
+        assertEquals(
+            setOf(Button.TRIANGLE, Button.L1, Button.R1, Button.L2, Button.R2),
+            held("dpad-nw"),
+        )
     }
 
     @Test fun oneFingerTouch() {
@@ -97,7 +132,10 @@ class InputParserTest {
     }
 
     @Test fun twoFingerTouch() {
-        assertEquals(listOf(Touch(1, 1521, 779), Touch(2, 0, 260)), Fixtures.parsed("touch-1").touches)
+        assertEquals(
+            listOf(Touch(1, 1521, 779), Touch(2, 0, 260)),
+            Fixtures.parsed("touch-1").touches,
+        )
         assertTrue(Button.TOUCHPAD_CLICK in held("touch-1"))
     }
 
@@ -129,7 +167,11 @@ class InputParserTest {
     @Test fun wrongLengthIsRejected() {
         for (size in listOf(0, 1, 63, 65)) {
             val r = parseUsbInput(ByteArray(size).also { if (size > 0) it[0] = 1 })
-            assertEquals("size ${size}", RejectReason.WRONG_LENGTH, (r as ParseResult.Rejected).reason)
+            assertEquals(
+                "size $size",
+                RejectReason.WRONG_LENGTH,
+                (r as ParseResult.Rejected).reason,
+            )
         }
     }
 
@@ -141,12 +183,20 @@ class InputParserTest {
     @Test fun undefinedDpadNibbleIsRejected() {
         for (nibble in 9..15) {
             val r = Fixtures.report("idle").copyOf().also { it[8] = nibble.toByte() }
-            assertEquals("nibble ${nibble}", RejectReason.BAD_DPAD, (parseUsbInput(r) as ParseResult.Rejected).reason)
+            assertEquals(
+                "nibble $nibble",
+                RejectReason.BAD_DPAD,
+                (parseUsbInput(r) as ParseResult.Rejected).reason,
+            )
         }
     }
 
     @Test fun touchOutsideThePadIsRejected() {
-        val r = Fixtures.report("touch-0").copyOf().also { it[34] = 0xff.toByte(); it[35] = 0xff.toByte() } // x = 4095
+        val r = Fixtures.report("touch-0").copyOf().also {
+            it[34] = 0xff.toByte()
+            it[35] =
+                0xff.toByte()
+        } // x = 4095
         assertEquals(RejectReason.BAD_TOUCH, (parseUsbInput(r) as ParseResult.Rejected).reason)
     }
 
@@ -158,7 +208,7 @@ class InputParserTest {
             if (bytes.isNotEmpty() && i % 4 == 0) bytes[0] = 1
             if (parseUsbInput(bytes) is ParseResult.Ok) ok++
         }
-        assertTrue("some random reports should parse, got ${ok}", ok > 0)
+        assertTrue("some random reports should parse, got $ok", ok > 0)
     }
 
     private companion object {

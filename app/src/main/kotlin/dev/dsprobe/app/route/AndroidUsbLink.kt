@@ -19,7 +19,10 @@ private const val HID_GET_REPORT_REQUEST_TYPE = 0xA1
 private const val HID_GET_REPORT_REQUEST = 0x01
 private const val HID_FEATURE_REPORT_VALUE = 0x0300
 
-/** A claim of interface 3: one queued [UsbRequest] reads input, [UsbDeviceConnection.bulkTransfer] writes output (P7). */
+/**
+ * A claim of interface 3: one queued [UsbRequest] reads input, [UsbDeviceConnection.bulkTransfer]
+ * writes output (P7).
+ */
 class AndroidUsbLink(
     private val connection: UsbDeviceConnection,
     hid: UsbInterface,
@@ -42,26 +45,41 @@ class AndroidUsbLink(
         }
         val done = try {
             connection.requestWait(timeoutMs.toLong())
-        } catch (e: TimeoutException) {
+        } catch (expected: TimeoutException) {
             return ReadResult.Timeout // the request stays queued; the next wait picks it up
         }
         queued = false
-        if (done == null) return ReadResult.Failed("requestWait gave no request")
-        if (done !== request) return ReadResult.Failed("requestWait returned another request")
+        if (done !== request) {
+            val why = if (done == null) "gave no request" else "returned another request"
+            return ReadResult.Failed("requestWait $why")
+        }
         // dequeue leaves the position at the bytes transferred
         return ReadResult.Report(buffer.array().copyOf(buffer.position()))
     }
 
     override fun writeReport(report: ByteArray): Boolean {
-        check(report.size == Limits.USB_OUTPUT_REPORT_BYTES) { "output report is ${report.size} bytes" }
-        return connection.bulkTransfer(outEndpoint, report, report.size, AppLimits.OUTPUT_WRITE_TIMEOUT_MS) == report.size
+        check(report.size == Limits.USB_OUTPUT_REPORT_BYTES) {
+            "output report is ${report.size} bytes"
+        }
+        return connection.bulkTransfer(
+            outEndpoint,
+            report,
+            report.size,
+            AppLimits.OUTPUT_WRITE_TIMEOUT_MS,
+        ) ==
+            report.size
     }
 
     override fun readFeature(reportId: Int, length: Int): ByteArray? {
         val buffer = ByteArray(length)
         val got = connection.controlTransfer(
-            HID_GET_REPORT_REQUEST_TYPE, HID_GET_REPORT_REQUEST, HID_FEATURE_REPORT_VALUE or reportId,
-            Limits.USB_HID_INTERFACE_ID, buffer, length, AppLimits.FEATURE_READ_TIMEOUT_MS,
+            HID_GET_REPORT_REQUEST_TYPE,
+            HID_GET_REPORT_REQUEST,
+            HID_FEATURE_REPORT_VALUE or reportId,
+            Limits.USB_HID_INTERFACE_ID,
+            buffer,
+            length,
+            AppLimits.FEATURE_READ_TIMEOUT_MS,
         )
         return if (got > 0) buffer.copyOf(got) else null
     }
@@ -87,27 +105,52 @@ private fun findHid(device: UsbDevice): UsbInterface? = (0 until device.interfac
     .map { device.getInterface(it) }
     .firstOrNull { it.id == Limits.USB_HID_INTERFACE_ID && it.alternateSetting == 0 }
 
-private fun endpointAt(iface: UsbInterface, address: Int): UsbEndpoint =
-    checkNotNull((0 until iface.endpointCount).map { iface.getEndpoint(it) }.firstOrNull { it.address == address }) { "no endpoint $address" }
+private fun endpointAt(iface: UsbInterface, address: Int): UsbEndpoint = checkNotNull(
+    (0 until iface.endpointCount).map { iface.getEndpoint(it) }.firstOrNull {
+        it.address ==
+            address
+    },
+) { "no endpoint $address" }
 
-/** Checks permission and layout, opens the device, claims interface 3 (P4). Nothing is claimed unless the layout matches. */
+/**
+ * Checks permission and layout, opens the device, claims interface 3 (P4). Nothing is claimed
+ * unless the layout matches.
+ */
 fun claimHidInterface(manager: UsbManager, device: UsbDevice, log: (String) -> Unit): OpenOutcome {
     if (!manager.hasPermission(device)) return OpenOutcome(OpenResult.NoPermission, null)
-    val hid = findHid(device) ?: return OpenOutcome(OpenResult.WrongLayout("no interface ${Limits.USB_HID_INTERFACE_ID}"), null)
+    val hid =
+        findHid(device)
+            ?: return OpenOutcome(
+                OpenResult.WrongLayout("no interface ${Limits.USB_HID_INTERFACE_ID}"),
+                null,
+            )
     checkHidLayout(hid.interfaceClass == UsbConstants.USB_CLASS_HID, describe(hid))?.let {
         return OpenOutcome(OpenResult.WrongLayout(it), null)
     }
-    val connection = manager.openDevice(device) ?: return OpenOutcome(OpenResult.ClaimFailed(OPEN_FAILED_NO_ERRNO), null)
+    val connection =
+        manager.openDevice(device)
+            ?: return OpenOutcome(OpenResult.ClaimFailed(OPEN_FAILED_NO_ERRNO), null)
     if (!connection.claimInterface(hid, true)) {
         boundary("close after refused claim", log) { connection.close() }
         return OpenOutcome(OpenResult.ClaimFailed(OPEN_FAILED_NO_ERRNO), null)
     }
+    return linkOn(connection, hid, log)?.let { OpenOutcome(OpenResult.Opened, it) }
+        ?: OpenOutcome(OpenResult.ClaimFailed(OPEN_FAILED_NO_ERRNO), null)
+}
+
+/** The link over a claimed interface, or null with the claim and the open undone. */
+private fun linkOn(
+    connection: UsbDeviceConnection,
+    hid: UsbInterface,
+    log: (String) -> Unit,
+): AndroidUsbLink? {
     val request = UsbRequest()
-    if (!request.initialize(connection, endpointAt(hid, Limits.USB_HID_IN_ENDPOINT_ADDRESS))) {
-        boundary("release after refused request", log) { connection.releaseInterface(hid) }
-        boundary("close after refused request", log) { connection.close() }
-        return OpenOutcome(OpenResult.ClaimFailed(OPEN_FAILED_NO_ERRNO), null)
+    if (request.initialize(connection, endpointAt(hid, Limits.USB_HID_IN_ENDPOINT_ADDRESS))) {
+        val out = endpointAt(hid, Limits.USB_HID_OUT_ENDPOINT_ADDRESS)
+        return AndroidUsbLink(connection, hid, request, out)
     }
-    val link = AndroidUsbLink(connection, hid, request, endpointAt(hid, Limits.USB_HID_OUT_ENDPOINT_ADDRESS))
-    return OpenOutcome(OpenResult.Opened, link)
+    // undo the claim and the open, newest first
+    boundary("release after refused request", log) { connection.releaseInterface(hid) }
+    boundary("close after refused request", log) { connection.close() }
+    return null
 }

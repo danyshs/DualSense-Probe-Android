@@ -30,15 +30,19 @@ class MainActivity : ComponentActivity() {
         if (!isChangingConfigurations) session.onActivityStop()
     }
 
-    // the pad's own events never reach the UI: Circle isn't Back and the touchpad click taps nothing
+    // the pad's own events never reach the UI: Circle isn't Back and the touchpad click taps
+    // nothing
     // androidx marks only its own override restricted; calling super is the plain Activity contract
     @SuppressLint("RestrictedApi")
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean = session.androidRoute.onKey(event) || super.dispatchKeyEvent(event)
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+        session.androidRoute.onKey(event) || super.dispatchKeyEvent(event)
 
-    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean = fromPad(event, HOOK_MOTION) || super.dispatchGenericMotionEvent(event)
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean =
+        fromPad(event, HOOK_MOTION) || super.dispatchGenericMotionEvent(event)
 
     // a touchpad click arrives as a mouse button press, which is a touch event
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean = fromPad(event, HOOK_TOUCH) || super.dispatchTouchEvent(event)
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean =
+        fromPad(event, HOOK_TOUCH) || super.dispatchTouchEvent(event)
 
     private fun fromPad(event: MotionEvent, hook: String): Boolean {
         val decor = window.decorView

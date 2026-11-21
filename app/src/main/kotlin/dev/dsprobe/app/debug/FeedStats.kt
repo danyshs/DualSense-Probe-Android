@@ -1,6 +1,7 @@
 package dev.dsprobe.app.debug
 
 import dev.dsprobe.app.live.FeedEvent
+import dev.dsprobe.pad.u8
 
 private const val NANOS_PER_MS = 1_000_000L
 private const val SEQUENCE_BYTE = 7
@@ -24,14 +25,16 @@ class FeedStats {
         for (event in events) {
             val raw = event.raw
             if (event.control != null || raw == null || raw.size <= SEQUENCE_BYTE) continue
-            count(raw[SEQUENCE_BYTE].toInt() and 0xff, event.timeNs)
+            count(raw.u8(SEQUENCE_BYTE), event.timeNs)
         }
     }
 
     private fun count(sequence: Int, timeNs: Long) {
         reportsReceived += 1
         if (lastSequence >= 0 && sequence != lastSequence) {
-            reportsDropped += ((sequence - lastSequence - 1) % SEQUENCE_MODULUS + SEQUENCE_MODULUS) % SEQUENCE_MODULUS
+            reportsDropped +=
+                ((sequence - lastSequence - 1) % SEQUENCE_MODULUS + SEQUENCE_MODULUS) %
+                SEQUENCE_MODULUS
         }
         if (lastNs != 0L) longestGapMs = maxOf(longestGapMs, (timeNs - lastNs) / NANOS_PER_MS)
         lastSequence = sequence

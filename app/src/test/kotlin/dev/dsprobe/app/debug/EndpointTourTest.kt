@@ -6,7 +6,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-private fun crossRow() = TraceRow(0L, Route.DIRECT_USB, "in.button.cross", "x", "Cross  pressed", "report 0x01")
+private fun crossRow() =
+    TraceRow(0L, Route.DIRECT_USB, "in.button.cross", "x", "Cross  pressed", "report 0x01")
 
 private fun tourAtCross(): EndpointTour {
     val tour = EndpointTour(buildEndpointCards())
@@ -61,7 +62,12 @@ class EndpointTourTest {
         val tour = tourAtCross()
         tour.observe(listOf(crossRow()), null)
         val lines = tourLines(tour.answers)
-        assertTrue(lines.toString(), lines.any { it.startsWith("endpoint-seen id=in.button.cross Cross  pressed") })
+        assertTrue(
+            lines.toString(),
+            lines.any {
+                it.startsWith("endpoint-seen id=in.button.cross Cross  pressed")
+            },
+        )
     }
 
     @Test fun aFreeRangeCardNotesItsRawChange() {

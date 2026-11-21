@@ -40,7 +40,8 @@ import org.junit.Test
 
 private val STRANDED_TIMER = StartTimer(RouteTimer.STRANDED_GRACE, AppLimits.STRANDED_GRACE_MS)
 
-private fun step(state: RouteState, event: RouteEvent, fg: Boolean = true) = routeStep(state, event, fg)
+private fun step(state: RouteState, event: RouteEvent, fg: Boolean = true) =
+    routeStep(state, event, fg)
 
 /** One test per arrow of the state table, plus the odd orders. */
 class RouteMachineTest {
@@ -48,7 +49,10 @@ class RouteMachineTest {
     @Test fun noPadSeesInputDevicesAndEntersAndroidMode() {
         val r = step(NoPad(usbHit), InputDevicesAppeared(usbPad))
         assertEquals(androidMode(usbPad), r.state)
-        assertEquals(listOf(CancelTimer(RouteTimer.STRANDED_GRACE), StartAndroidRoute(usbPad)), r.effects)
+        assertEquals(
+            listOf(CancelTimer(RouteTimer.STRANDED_GRACE), StartAndroidRoute(usbPad)),
+            r.effects,
+        )
         assertNull(r.ignoredReason)
     }
 
@@ -154,7 +158,10 @@ class RouteMachineTest {
     }
 
     @Test fun claimOpenedEntersDirectUsb() {
-        assertEquals(DirectUsb(usbPad), step(AskingUsbPermission(usbPad), ClaimResult(OpenResult.Opened)).state)
+        assertEquals(
+            DirectUsb(usbPad),
+            step(AskingUsbPermission(usbPad), ClaimResult(OpenResult.Opened)).state,
+        )
     }
 
     @Test fun claimOpenedAfterTheAppLeftIsGivenStraightBack() {
@@ -184,9 +191,15 @@ class RouteMachineTest {
     @Test fun grantedInTheBackgroundWaitsForTheAppThenOpens() {
         val waiting = step(AskingUsbPermission(usbPad), PermissionResult(true), fg = false)
         assertEquals(AskingUsbPermission(usbPad, grantWaitingForApp = true), waiting.state)
-        assertEquals(listOf(StartTimer(RouteTimer.PERMISSION_WAIT, AppLimits.PERMISSION_BACKGROUND_WAIT_MS)), waiting.effects)
+        assertEquals(
+            listOf(StartTimer(RouteTimer.PERMISSION_WAIT, AppLimits.PERMISSION_BACKGROUND_WAIT_MS)),
+            waiting.effects,
+        )
         val back = step(waiting.state, AppStarted)
-        assertEquals(listOf(CancelTimer(RouteTimer.PERMISSION_WAIT), OpenDirectUsb(usbPad)), back.effects)
+        assertEquals(
+            listOf(CancelTimer(RouteTimer.PERMISSION_WAIT), OpenDirectUsb(usbPad)),
+            back.effects,
+        )
     }
 
     @Test fun grantedInTheBackgroundTimesOutToAndroidMode() {
@@ -217,7 +230,10 @@ class RouteMachineTest {
     }
 
     @Test fun directUsbSecondPadIsIgnoredWithABanner() {
-        assertEquals(DirectUsb(usbPad, secondPadIgnored = true), step(DirectUsb(usbPad), SecondPadSeen).state)
+        assertEquals(
+            DirectUsb(usbPad, secondPadIgnored = true),
+            step(DirectUsb(usbPad), SecondPadSeen).state,
+        )
     }
 
     @Test fun androidDevicesComingAndGoingWhileClaimedIsExpected() {
@@ -229,11 +245,23 @@ class RouteMachineTest {
     @Test fun releaseFinishedWaitsForAndroidAndAsksForAResync() {
         val r = step(Releasing(usbPad, ReleaseReason.BACK), ReleaseFinished)
         assertEquals(WaitingForAndroid(usbPad), r.state)
-        assertEquals(listOf(StartTimer(RouteTimer.REBIND, AppLimits.ANDROID_REBIND_TIMEOUT_MS), ResyncInputs), r.effects)
+        assertEquals(
+            listOf(
+                StartTimer(RouteTimer.REBIND, AppLimits.ANDROID_REBIND_TIMEOUT_MS),
+                ResyncInputs,
+            ),
+            r.effects,
+        )
     }
 
     @Test fun releaseAfterAnUnplugEndsAtNoPad() {
-        assertEquals(NoPad(), step(Releasing(usbPad, ReleaseReason.USB_DETACHED, usbGone = true), ReleaseFinished).state)
+        assertEquals(
+            NoPad(),
+            step(
+                Releasing(usbPad, ReleaseReason.USB_DETACHED, usbGone = true),
+                ReleaseFinished,
+            ).state,
+        )
         val unplugged = step(Releasing(usbPad, ReleaseReason.BACK), UsbDetached).state
         assertEquals(NoPad(), step(unplugged, ReleaseFinished).state)
     }
@@ -257,7 +285,10 @@ class RouteMachineTest {
 
     // Stranded
     @Test fun strandedLeavesWhenDevicesAppearOrOnUnplug() {
-        assertEquals(androidMode(usbPad), step(Stranded(usbHit), InputDevicesAppeared(usbPad)).state)
+        assertEquals(
+            androidMode(usbPad),
+            step(Stranded(usbHit), InputDevicesAppeared(usbPad)).state,
+        )
         assertEquals(NoPad(), step(Stranded(usbHit), UsbDetached).state)
         assertEquals(TooMany, step(Stranded(usbHit), SecondPadSeen).state)
     }

@@ -26,7 +26,10 @@ tasks.test {
         override fun afterTest(testDescriptor: TestDescriptor, result: TestResult) {}
         override fun afterSuite(suite: TestDescriptor, result: TestResult) {
             if (suite.parent != null) return
-            println("pad tests: ${result.testCount} run, ${result.failedTestCount} failed, ${result.skippedTestCount} skipped")
+            println(
+                "pad tests: ${result.testCount} run, ${result.failedTestCount} failed, " +
+                    "${result.skippedTestCount} skipped",
+            )
             check(result.testCount > 0) { "no tests ran" }
         }
     })

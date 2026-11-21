@@ -23,7 +23,10 @@ import dev.dsprobe.app.route.answerRows
 import dev.dsprobe.app.ui.theme.NumberStyle
 import kotlinx.coroutines.delay
 
-/** "What Android reports": every raw answer, asked again once a second while it is open. One line per row so nothing reflows. */
+/**
+ * "What Android reports": every raw answer, asked again once a second while it is open. One line
+ * per row so nothing reflows.
+ */
 @Composable
 fun AnswersSheet(answers: AndroidAnswers?, onRefresh: () -> Unit) {
     var open by remember { mutableStateOf(false) }
@@ -37,11 +40,19 @@ fun AnswersSheet(answers: AndroidAnswers?, onRefresh: () -> Unit) {
         }
     }
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        if (answers == null) Text(stringResource(R.string.answers_none), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (answers == null) {
+            Text(
+                stringResource(R.string.answers_none),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         for (row in answers?.let(::answerRows).orEmpty()) {
             Text(
                 stringResource(R.string.answer_row, stringResource(row.labelRes), row.value),
-                style = NumberStyle, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+                style = NumberStyle,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

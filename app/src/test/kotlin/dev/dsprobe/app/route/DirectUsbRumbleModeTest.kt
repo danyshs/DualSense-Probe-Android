@@ -61,7 +61,9 @@ class DirectUsbRumbleModeTest {
         }
     }
 
-    /** Picks [mode], rumbles both motors, stops, and checks both reports against the goldens named. */
+    /**
+     * Picks [mode], rumbles both motors, stops, and checks both reports against the goldens named.
+     */
     private fun pickAndCheck(mode: RumbleMode, both: String, off: String) {
         val r = route!!
         assertEquals(ApiAnswer.Ok, r.send(OutputRequest.SetRumbleMode(mode)))
@@ -69,10 +71,21 @@ class DirectUsbRumbleModeTest {
         val before = link.writes.size
         r.send(OutputRequest.Rumble(HALF, HALF, 1_000))
         waitForWrites(before + 1)
-        assertArrayEquals(mode.name + " both", TestFixtures.bytes("golden/$both.hex"), link.writes[before])
+        assertArrayEquals(
+            mode.name + " both",
+            TestFixtures.bytes("golden/$both.hex"),
+            link.writes[before],
+        )
         r.send(OutputRequest.Rumble(0u, 0u, 1))
         waitForWrites(before + 2)
-        assertArrayEquals(mode.name + " off", TestFixtures.bytes("golden/$off.hex"), link.writes[before + 1])
+        assertArrayEquals(
+            mode.name + " off",
+            TestFixtures.bytes("golden/$off.hex"),
+            link.writes[
+                before +
+                    1,
+            ],
+        )
     }
 
     @Test fun theDefaultComesFromTheFirmwareAndEitherModeCanBePickedAfterwards() {
@@ -109,6 +122,10 @@ class DirectUsbRumbleModeTest {
         open(null)
         route!!.release()
         assertTrue(route!!.send(OutputRequest.SetRumbleMode(RumbleMode.V2)) is ApiAnswer.Failed)
-        assertTrue(route!!.send(OutputRequest.RumblePattern(listOf(RumbleStep(1, 1, 10)))) is ApiAnswer.Failed)
+        assertTrue(
+            route!!.send(
+                OutputRequest.RumblePattern(listOf(RumbleStep(1, 1, 10))),
+            ) is ApiAnswer.Failed,
+        )
     }
 }

@@ -18,7 +18,10 @@ private const val PASSES_MAX = 20
 private class Clock {
     var now = 1_000L
     val sent = ArrayList<ByteArray>()
-    val writer = OutputWriter({ sent.add(it.copyOf()); true }, { now }, {}, {})
+    val writer = OutputWriter({
+        sent.add(it.copyOf())
+        true
+    }, { now }, {}, {})
 
     fun golden(name: String) = TestFixtures.bytes("golden/$name.hex")
 }
@@ -32,11 +35,22 @@ class OutputWriterRumbleTest {
         assertEquals(0L, w.pumpOnce())
         assertArrayEquals(clock.golden("rumble-both"), clock.sent[0])
         clock.now += 999
-        assertEquals("the resend still rumbles one millisecond before the deadline", 0L, w.pumpOnce())
+        assertEquals(
+            "the resend still rumbles one millisecond before the deadline",
+            0L,
+            w.pumpOnce(),
+        )
         assertArrayEquals(clock.golden("rumble-both"), clock.sent[1])
         clock.now += 1
         val wait = w.pumpOnce()
-        assertEquals("the zero is due but the minimum gap since the last send holds it", (Limits.OUTPUT_INTERVAL_MS_MIN - 1).toLong(), wait)
+        assertEquals(
+            "the zero is due but the minimum gap since the last send holds it",
+            (
+                Limits.OUTPUT_INTERVAL_MS_MIN -
+                    1
+                ).toLong(),
+            wait,
+        )
         clock.now += Limits.OUTPUT_INTERVAL_MS_MIN
         assertEquals(0L, w.pumpOnce())
         assertEquals(3, clock.sent.size)
@@ -61,7 +75,11 @@ class OutputWriterRumbleTest {
         val count = clock.sent.size
         clock.now += 100
         val wait = w.pumpOnce()
-        assertEquals("only the periodic resend is left, never an expiry report", count, clock.sent.size)
+        assertEquals(
+            "only the periodic resend is left, never an expiry report",
+            count,
+            clock.sent.size,
+        )
         assertEquals(Limits.OUTPUT_RESEND_INTERVAL_MS.toLong() - 100, wait)
     }
 
@@ -94,7 +112,13 @@ class OutputWriterRumbleTest {
 
     @Test fun aDurationOutsideItsLimitsIsRefused() {
         assertThrows(IllegalArgumentException::class.java) { w.setRumble(HALF, HALF, 0) }
-        assertThrows(IllegalArgumentException::class.java) { w.setRumble(HALF, HALF, Limits.RUMBLE_DURATION_MS_MAX + 1) }
+        assertThrows(IllegalArgumentException::class.java) {
+            w.setRumble(
+                HALF,
+                HALF,
+                Limits.RUMBLE_DURATION_MS_MAX + 1,
+            )
+        }
         w.setRumble(HALF, HALF, Limits.RUMBLE_DURATION_MS_MAX)
     }
 
@@ -103,9 +127,11 @@ class OutputWriterRumbleTest {
         w.pumpOnce()
         clock.now += 100
         w.finish()
-        for (i in 0 until PASSES_MAX) {
-            clock.now += Limits.OUTPUT_INTERVAL_MS_MIN
-            if (w.pumpOnce() == null) break
+        run {
+            repeat(PASSES_MAX) {
+                clock.now += Limits.OUTPUT_INTERVAL_MS_MIN
+                if (w.pumpOnce() == null) return@run
+            }
         }
         assertArrayEquals(TestFixtures.allOffGolden, clock.sent.last())
         assertNull(w.pumpOnce())

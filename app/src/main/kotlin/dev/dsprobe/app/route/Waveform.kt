@@ -15,15 +15,25 @@ private fun lane(id: Int, steps: List<RumbleStep>, pick: (RumbleStep) -> Int): W
 }
 
 /**
- * A pattern for the vibrators Android reports: the lower id is left, the next is right, one id plays
+ * A pattern for the vibrators Android reports: the lower id is left, the next is right, one id
+ * plays
  * the stronger of the two, ids past two are unused. A vibrator that would never move is left out.
  */
 fun waveformsFor(ids: List<Int>, steps: List<RumbleStep>): List<Waveform> {
-    require(steps.isNotEmpty() && steps.size <= AppLimits.RUMBLE_STEPS_MAX) { "rumble steps ${steps.size}" }
+    require(steps.isNotEmpty() && steps.size <= AppLimits.RUMBLE_STEPS_MAX) {
+        "rumble steps ${steps.size}"
+    }
     val sorted = ids.sorted()
     return when (sorted.size) {
         0 -> emptyList()
+
         1 -> listOfNotNull(lane(sorted[0], steps) { maxOf(it.left, it.right) })
-        else -> listOfNotNull(lane(sorted[0], steps) { it.left }, lane(sorted[1], steps) { it.right })
+
+        else -> listOfNotNull(
+            lane(sorted[0], steps) {
+                it.left
+            },
+            lane(sorted[1], steps) { it.right },
+        )
     }
 }

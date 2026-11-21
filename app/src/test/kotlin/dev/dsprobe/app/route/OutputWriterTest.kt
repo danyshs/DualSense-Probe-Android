@@ -24,11 +24,14 @@ private class Rig {
     val sent = ArrayList<ByteArray>()
     var accept = true
     val failing = ArrayList<String>()
-    val writer = OutputWriter({ sent.add(it.copyOf()); accept }, { now }, { failing.add(it) }, {})
+    val writer = OutputWriter({
+        sent.add(it.copyOf())
+        accept
+    }, { now }, { failing.add(it) }, {})
 
     /** Passes until the writer is done, a clock tick of the minimum gap between them. */
     fun drain() {
-        for (i in 0 until PASSES_MAX) {
+        repeat(PASSES_MAX) {
             if (writer.pumpOnce() == null) return
             now += Limits.OUTPUT_INTERVAL_MS_MIN
         }
@@ -49,7 +52,10 @@ class OutputWriterTest {
         assertEquals(0L, w.pumpOnce())
         assertEquals(1, rig.sent.size)
         val want = off.copy(rumbleLeft = 0x80u, lightbar = Rgb(1u, 2u, 3u))
-        assertArrayEquals(buildUsbOutput(want, setOf(OutputField.RUMBLE, OutputField.LIGHTBAR)), rig.sent[0])
+        assertArrayEquals(
+            buildUsbOutput(want, setOf(OutputField.RUMBLE, OutputField.LIGHTBAR)),
+            rig.sent[0],
+        )
         assertEquals(0x80, rig.sent[0][4].toInt() and 0xff)
         assertEquals(listOf(1, 2, 3), (45..47).map { rig.sent[0][it].toInt() })
     }
@@ -60,7 +66,11 @@ class OutputWriterTest {
         w.pumpOnce()
         assertEquals(1, rig.sent.size)
         assertEquals(0x20, rig.sent[0][4].toInt())
-        assertEquals("flag 1 stays clear: no other feature was asked for", 0, rig.sent[0][2].toInt())
+        assertEquals(
+            "flag 1 stays clear: no other feature was asked for",
+            0,
+            rig.sent[0][2].toInt(),
+        )
     }
 
     @Test fun sendsAreSpacedByTheMinimumInterval() {
@@ -81,7 +91,10 @@ class OutputWriterTest {
         w.finish()
         rig.drain()
         assertEquals(2, rig.sent.size)
-        assertArrayEquals(buildUsbOutput(off.copy(lightbar = red), setOf(OutputField.LIGHTBAR)), rig.sent[0])
+        assertArrayEquals(
+            buildUsbOutput(off.copy(lightbar = red), setOf(OutputField.LIGHTBAR)),
+            rig.sent[0],
+        )
         assertArrayEquals(TestFixtures.allOffGolden, rig.sent.last())
         assertFalse(w.change(OutputField.RUMBLE) { it.copy(rumbleLeft = 9u) })
         assertEquals(1L, w.droppedAfterCloseCount)
@@ -117,11 +130,15 @@ class OutputWriterTest {
         assertEquals(0L, w.pumpOnce())
         assertEquals(2, rig.sent.size)
         assertArrayEquals(rig.sent[0], rig.sent[1])
-        assertEquals("rumble was never set, so it is not resent", 0, rig.sent[1][1].toInt() and 0x03)
+        assertEquals(
+            "rumble was never set, so it is not resent",
+            0,
+            rig.sent[1][1].toInt() and 0x03,
+        )
     }
 
     @Test fun nothingSetMeansNothingIsEverSent() {
-        for (i in 0 until PASSES_MAX) {
+        repeat(PASSES_MAX) {
             w.pumpOnce()
             rig.now += Limits.OUTPUT_RESEND_INTERVAL_MS
         }
@@ -131,7 +148,7 @@ class OutputWriterTest {
     @Test fun aRefusedReportIsRetriedAndTheFailureIsToldOnce() {
         rig.accept = false
         w.change(OutputField.LIGHTBAR) { it.copy(lightbar = red) }
-        for (i in 0 until AppLimits.SEND_FAILURES_IN_A_ROW_MAX + 3) {
+        repeat(AppLimits.SEND_FAILURES_IN_A_ROW_MAX + 3) {
             w.pumpOnce()
             rig.now += Limits.OUTPUT_INTERVAL_MS_MIN
         }
@@ -141,7 +158,10 @@ class OutputWriterTest {
         val before = rig.sent.size
         w.pumpOnce()
         assertEquals(before + 1, rig.sent.size)
-        assertArrayEquals(buildUsbOutput(off.copy(lightbar = red), setOf(OutputField.LIGHTBAR)), rig.sent.last())
+        assertArrayEquals(
+            buildUsbOutput(off.copy(lightbar = red), setOf(OutputField.LIGHTBAR)),
+            rig.sent.last(),
+        )
     }
 
     @Test fun haltStopsEverySendEvenTheFinalOne() {
@@ -186,9 +206,15 @@ class OutputWriterTest {
 
     @Test fun aTriggerDurationPastTheLimitIsRefused() {
         assertThrows(IllegalArgumentException::class.java) {
-            w.setTrigger(true, TriggerEffect.resistance(1u, 2u), Limits.TRIGGER_EFFECT_DURATION_MS_MAX + 1)
+            w.setTrigger(
+                true,
+                TriggerEffect.resistance(1u, 2u),
+                Limits.TRIGGER_EFFECT_DURATION_MS_MAX + 1,
+            )
         }
-        assertThrows(IllegalArgumentException::class.java) { w.setTrigger(true, TriggerEffect.OFF, 0) }
+        assertThrows(IllegalArgumentException::class.java) {
+            w.setTrigger(true, TriggerEffect.OFF, 0)
+        }
     }
 
     @Test fun aTriggerAfterTheFinishIsDroppedAndCounted() {

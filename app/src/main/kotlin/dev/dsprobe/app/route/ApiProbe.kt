@@ -1,13 +1,20 @@
 package dev.dsprobe.app.route
 
-/** The public method names of one Android class, found by reflection. Names only: nothing here ever calls one. */
+/**
+ * The public method names of one Android class, found by reflection. Names only: nothing here ever
+ * calls one.
+ */
 data class ClassMethods(val className: String, val methods: List<String>)
 
 /** A method whose name has one of the probe's words in it. */
 data class MethodMatch(val method: String, val keyword: String)
 
-/** The words a method name is searched for: the amendment's list, matched whole (a plural counts, "enabled" does not count as "led"). */
-val PROBE_KEYWORDS = listOf("trigger", "haptic", "feedback", "effect", "led", "light", "mute", "battery", "audio")
+/**
+ * The words a method name is searched for: the amendment's list, matched whole (a plural counts,
+ * "enabled" does not count as "led").
+ */
+val PROBE_KEYWORDS =
+    listOf("trigger", "haptic", "feedback", "effect", "led", "light", "mute", "battery", "audio")
 
 private val CAMEL_BOUNDARY = Regex("(?<=[a-z0-9])(?=[A-Z])")
 

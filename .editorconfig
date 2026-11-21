@@ -1,0 +1,11 @@
+root = true
+
+[*.{kt,kts}]
+indent_style = space
+indent_size = 4
+max_line_length = 100
+insert_final_newline = true
+# gradle.properties sets kotlin.code.style=official, which is IntelliJ's style
+ktlint_code_style = intellij_idea
+# Compose UI functions are nouns in PascalCase by Compose's own convention
+ktlint_function_naming_ignore_when_annotated_with = Composable

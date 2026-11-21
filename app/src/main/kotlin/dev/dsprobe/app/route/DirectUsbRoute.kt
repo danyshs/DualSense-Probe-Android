@@ -82,10 +82,16 @@ class DirectUsbRoute(
         writerThread = Thread(writer::run, WRITER_NAME).also { it.start() }
     }
 
-    /** Reads the firmware once, before the threads start, and picks the rumble flags it understands. */
+    /**
+     * Reads the firmware once, before the threads start, and picks the rumble flags it understands.
+     */
     private fun pickRumbleMode() {
         val reply = askOrNull("firmware read", log) {
-            link.readFeature(Limits.USB_FEATURE_FIRMWARE_REPORT_ID, Limits.USB_FEATURE_FIRMWARE_REPORT_BYTES) ?: ByteArray(0)
+            link.readFeature(
+                Limits.USB_FEATURE_FIRMWARE_REPORT_ID,
+                Limits.USB_FEATURE_FIRMWARE_REPORT_BYTES,
+            )
+                ?: ByteArray(0)
         }
         val info = reply?.let(::parseFirmwareInfo)
         firmware = info
@@ -103,13 +109,17 @@ class DirectUsbRoute(
         if (faulted.compareAndSet(false, true)) onFault(detail)
     }
 
+    // a reader thread must not die silently; the comment at the catch says which case is a fault
+    @Suppress("TooGenericExceptionCaught")
     private fun readLoop() {
         live.setWriter(Thread.currentThread())
         try {
             while (!readerStop.get()) {
                 when (val r = link.readReport(AppLimits.READ_TIMEOUT_MS)) {
                     ReadResult.Timeout -> Unit
+
                     is ReadResult.Report -> onReport(r.bytes)
+
                     is ReadResult.Failed -> {
                         readerStop.set(true)
                         fault("read failed: ${r.detail}")
@@ -117,8 +127,15 @@ class DirectUsbRoute(
                 }
             }
         } catch (e: RuntimeException) {
-            // a callback or the claim going away under us after stop is expected; before stop it is a fault
-            if (readerStop.get()) lateDropCount = nextLateDropCount(lateDropCount) else fault("reader threw $e")
+            // a callback or the claim going away under us after stop is expected; before stop it is
+            // a fault
+            if (readerStop.get()) {
+                lateDropCount = nextLateDropCount(
+                    lateDropCount,
+                )
+            } else {
+                fault("reader threw $e")
+            }
             readerStop.set(true)
         }
     }
@@ -132,33 +149,71 @@ class DirectUsbRoute(
                 reportsRead += 1
                 publishInput(bytes, state)
             }
+
             // bad pad data is counted and logged, never asserted
             is ParseResult.Rejected -> {
                 publishInput(bytes, null)
                 rejectedCount += 1
-                if (rejectedCount <= AppLimits.REJECTED_REPORTS_LOGGED_MAX) log("input report rejected: ${parsed.reason} ${parsed.detail}")
+                if (rejectedCount <= AppLimits.REJECTED_REPORTS_LOGGED_MAX) {
+                    log("input report rejected: ${parsed.reason} ${parsed.detail}")
+                }
             }
         }
     }
 
     private fun publishInput(bytes: ByteArray, state: PadState?) {
-        if (feed.isActive) feed.publish(FeedEvent(System.nanoTime(), Route.DIRECT_USB, bytes, null, null, state))
+        if (feed.isActive) {
+            feed.publish(
+                FeedEvent(System.nanoTime(), Route.DIRECT_USB, bytes, null, null, state),
+            )
+        }
     }
 
-    // on the writer thread, after every send: the shadow always moves, the feed only hears of it while subscribed
-    private fun traceSend(report: ByteArray, fields: Set<OutputField>, ok: Boolean, isFinal: Boolean, isResend: Boolean) {
-        val request = fields.joinToString(" + ") { requestByField[it] ?: "none (a timed step or refresh)" }
-        val row = outputTrace.row(UsbSend(report, fields, request, ok, isFinal, isResend), System.nanoTime() / NANOS_PER_MS) ?: return
-        if (feed.isActive) feed.publish(FeedEvent(System.nanoTime(), Route.DIRECT_USB, report.copyOf(), row.text, row.control))
+    // on the writer thread, after every send: the shadow always moves, the feed only hears of it
+    // while subscribed
+    private fun traceSend(
+        report: ByteArray,
+        fields: Set<OutputField>,
+        ok: Boolean,
+        isFinal: Boolean,
+        isResend: Boolean,
+    ) {
+        val request = fields.joinToString(" + ") {
+            requestByField[it]
+                ?: "none (a timed step or refresh)"
+        }
+        val row =
+            outputTrace.row(
+                UsbSend(report, fields, request, ok, isFinal, isResend),
+                System.nanoTime() / NANOS_PER_MS,
+            )
+                ?: return
+        if (feed.isActive) {
+            feed.publish(
+                FeedEvent(
+                    System.nanoTime(),
+                    Route.DIRECT_USB,
+                    report.copyOf(),
+                    row.text,
+                    row.control,
+                ),
+            )
+        }
     }
 
     private fun remember(req: OutputRequest) {
         val field = when (req) {
             is OutputRequest.Rumble, is OutputRequest.RumblePattern -> OutputField.RUMBLE
+
             is OutputRequest.Lightbar -> OutputField.LIGHTBAR
+
             is OutputRequest.PlayerLeds -> OutputField.PLAYER_LEDS
+
             is OutputRequest.SetMuteLed -> OutputField.MUTE_LED
-            is OutputRequest.Trigger -> if (req.isRight) OutputField.RIGHT_TRIGGER else OutputField.LEFT_TRIGGER
+
+            is OutputRequest.Trigger ->
+                if (req.isRight) OutputField.RIGHT_TRIGGER else OutputField.LEFT_TRIGGER
+
             is OutputRequest.SetRumbleMode, is OutputRequest.AudioTone -> return
         }
         requestByField[field] = requestText(req)
@@ -215,18 +270,29 @@ class DirectUsbRoute(
         remember(req)
         val taken = when (req) {
             is OutputRequest.Rumble -> writer.setRumble(req.left, req.right, req.durationMs)
+
             is OutputRequest.RumblePattern -> writer.playRumble(req.steps)
+
             is OutputRequest.SetRumbleMode -> {
                 writer.setRumbleMode(req.mode)
                 !released.get()
             }
-            is OutputRequest.Lightbar -> writer.change(OutputField.LIGHTBAR) { it.copy(lightbar = req.rgb) }
+
+            is OutputRequest.Lightbar -> writer.change(OutputField.LIGHTBAR) {
+                it.copy(lightbar = req.rgb)
+            }
+
             is OutputRequest.PlayerLeds -> {
                 require(req.mask in 0..Limits.PLAYER_LED_MASK_MAX) { "player LED mask ${req.mask}" }
                 writer.change(OutputField.PLAYER_LEDS) { it.copy(playerLedMask = req.mask) }
             }
-            is OutputRequest.SetMuteLed -> writer.change(OutputField.MUTE_LED) { it.copy(muteLed = req.mode) }
+
+            is OutputRequest.SetMuteLed -> writer.change(OutputField.MUTE_LED) {
+                it.copy(muteLed = req.mode)
+            }
+
             is OutputRequest.Trigger -> writer.setTrigger(req.isRight, req.effect, req.durationMs)
+
             is OutputRequest.AudioTone -> return ApiAnswer.Failed("audio is not built yet")
         }
         return if (taken) ApiAnswer.Ok else ApiAnswer.Failed("the pad is being handed back")

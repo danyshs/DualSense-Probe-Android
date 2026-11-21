@@ -53,14 +53,18 @@ fun armsOf(d: Dpad): Set<Dpad> = when (d) {
     Dpad.NONE -> emptySet()
 }
 
-/** Full while held, then a linear fade over PRESS_GLOW_FADE_MS from the last moment it was active. */
+/**
+ * Full while held, then a linear fade over PRESS_GLOW_FADE_MS from the last moment it was active.
+ */
 fun glowAlpha(held: Boolean, activeMs: Long?, nowMs: Long): Float {
     if (held) return 1f
     if (activeMs == null) return 0f
     return (1f - (nowMs - activeMs).toFloat() / AppLimits.PRESS_GLOW_FADE_MS).coerceIn(0f, 1f)
 }
 
-/** A peak holds until it has been above the value for TRIGGER_PEAK_HOLD_MS, then drops to the value. */
+/**
+ * A peak holds until it has been above the value for TRIGGER_PEAK_HOLD_MS, then drops to the value.
+ */
 fun nextPeak(prev: Peak, value: Float, nowMs: Long): Peak = when {
     value >= prev.value -> Peak(value, nowMs)
     nowMs - prev.atMs > AppLimits.TRIGGER_PEAK_HOLD_MS -> Peak(value, nowMs)
@@ -81,8 +85,17 @@ private fun stickTrail(prev: List<TrailPoint>, x: Float, y: Float, nowMs: Long):
 private const val TRAIL_DEADZONE = 0.04f
 private const val TOUCH_TRAIL_POINTS_MAX = AppLimits.STICK_TRAIL_POINTS_MAX * 2
 
-private fun touchTrail(prev: List<TrailPoint>, touches: List<TouchPoint>, nowMs: Long): List<TrailPoint> =
-    trimTrail(prev + touches.map { TrailPoint(it.id, it.x, it.y, nowMs) }, nowMs, TOUCH_TRAIL_POINTS_MAX)
+private fun touchTrail(
+    prev: List<TrailPoint>,
+    touches: List<TouchPoint>,
+    nowMs: Long,
+): List<TrailPoint> = trimTrail(
+    prev + touches.map {
+        TrailPoint(it.id, it.x, it.y, nowMs)
+    },
+    nowMs,
+    TOUCH_TRAIL_POINTS_MAX,
+)
 
 private fun <T> appendBounded(list: List<T>, item: T?, max: Int): List<T> {
     if (item == null) return list
@@ -90,15 +103,20 @@ private fun <T> appendBounded(list: List<T>, item: T?, max: Int): List<T> {
     return if (next.size > max) next.drop(next.size - max) else next
 }
 
+private const val PAD_MIDDLE = 0.5f // a click with no finger down ripples from the middle
+
 private fun nextRipples(prev: List<Ripple>, frame: Frame, nowMs: Long): List<Ripple> {
     val fresh = prev.filter { nowMs - it.atMs <= AppLimits.CLICK_RIPPLE_MS }
     if (Button.TOUCHPAD_CLICK !in frame.pressedSinceLast) return fresh
     val finger = frame.state.touches.firstOrNull()
-    val ripple = Ripple(finger?.x ?: 0.5f, finger?.y ?: 0.5f, nowMs)
+    val ripple = Ripple(finger?.x ?: PAD_MIDDLE, finger?.y ?: PAD_MIDDLE, nowMs)
     return appendBounded(fresh, ripple, AppLimits.CLICK_RIPPLES_MAX)
 }
 
-/** One frame forward. Held or just-latched buttons and arms count as active now; the rest keep their last moment. */
+/**
+ * One frame forward. Held or just-latched buttons and arms count as active now; the rest keep their
+ * last moment.
+ */
 fun advance(prev: FeelFrame, frame: Frame, nowMs: Long): FeelFrame {
     val s = frame.state
     val active = HashMap(prev.buttonActiveMs)
@@ -118,11 +136,18 @@ fun advance(prev: FeelFrame, frame: Frame, nowMs: Long): FeelFrame {
         r2Peak = nextPeak(prev.r2Peak, s.r2, nowMs),
         ripples = nextRipples(prev.ripples, frame, nowMs),
         gyroHistory = appendBounded(prev.gyroHistory, s.gyro, AppLimits.MOTION_TRACE_SAMPLES_MAX),
-        accelHistory = appendBounded(prev.accelHistory, s.accel, AppLimits.MOTION_TRACE_SAMPLES_MAX),
+        accelHistory = appendBounded(
+            prev.accelHistory,
+            s.accel,
+            AppLimits.MOTION_TRACE_SAMPLES_MAX,
+        ),
     )
 }
 
-/** Degrees to rotate and to lean the drawing; [rollDegrees] from sideways gravity, [pitchDegrees] from forward. */
+/**
+ * Degrees to rotate and to lean the drawing; [rollDegrees] from sideways gravity, [pitchDegrees]
+ * from forward.
+ */
 data class Tilt(val rollDegrees: Float, val pitchDegrees: Float)
 
 /**

@@ -1,41 +1,44 @@
 package dev.dsprobe.pad
 
-/**
- * Where one input lives in an input report: bytes from [byteOffset] (little-endian when wider than
- * a byte), masked by [bitMask] when set, [widthBits] wide. [factsRow] is the FACTS.md row.
- */
-data class FieldSource(
-    val id: String,
-    val reportId: Int,
-    val byteOffset: Int,
-    val bitMask: Int?,
-    val widthBits: Int,
-    val factsRow: String,
-) {
-    init {
-        require(byteOffset in 1 until Limits.USB_INPUT_REPORT_BYTES) { "offset ${byteOffset}" }
-        require(widthBits in 1..32) { "width ${widthBits}" }
-        require(bitMask == null || bitMask in 1..0xff) { "mask ${bitMask}" }
-    }
-}
+private const val REPORT_ID_INPUT = 0x01
+private const val WORD_BITS = 2 * BITS_PER_BYTE
 
 private fun button(name: Button, offset: Int, mask: Int, row: String) =
-    FieldSource("in.button.${name.name.lowercase()}", 0x01, offset, mask, 1, row)
+    FieldSource("in.button.${name.name.lowercase()}", REPORT_ID_INPUT, offset, mask, 1, row)
 
-private fun byteField(id: String, offset: Int, row: String) = FieldSource(id, 0x01, offset, null, 8, row)
+private fun byteField(id: String, offset: Int, row: String) =
+    FieldSource(id, REPORT_ID_INPUT, offset, null, BITS_PER_BYTE, row)
 
-private fun wordField(id: String, offset: Int, row: String) = FieldSource(id, 0x01, offset, null, 16, row)
+private fun wordField(id: String, offset: Int, row: String) =
+    FieldSource(id, REPORT_ID_INPUT, offset, null, WORD_BITS, row)
 
-private fun touchFields(point: Int, base: Int): List<FieldSource> = listOf(
-    FieldSource("in.touch.${point}.id", 0x01, base, 0x7f, 7, "P17"),
-    FieldSource("in.touch.${point}.active", 0x01, base, 0x80, 1, "P17"),
-    FieldSource("in.touch.${point}.x.low8", 0x01, base + 1, null, 8, "P17"),
-    FieldSource("in.touch.${point}.x.high4", 0x01, base + 2, 0x0f, 4, "P17"),
-    FieldSource("in.touch.${point}.y.low4", 0x01, base + 2, 0xf0, 4, "P17"),
-    FieldSource("in.touch.${point}.y.high8", 0x01, base + 3, null, 8, "P17"),
+/** One field of a touch contact: its name, byte after the contact's first, mask and width. */
+private class TouchPart(val name: String, val byteDelta: Int, val mask: Int?, val widthBits: Int)
+
+private val TOUCH_PARTS = listOf(
+    TouchPart("id", 0, 0x7f, 7),
+    TouchPart("active", 0, 0x80, 1),
+    TouchPart("x.low8", 1, null, 8),
+    TouchPart("x.high4", 2, NIBBLE_LOW_MASK, NIBBLE_BITS),
+    TouchPart("y.low4", 2, NIBBLE_HIGH_MASK, NIBBLE_BITS),
+    TouchPart("y.high8", 3, null, 8),
 )
 
-/** One entry per input, as data; the Route trace reads it and InputMapTest checks it against the parser. */
+private fun touchFields(point: Int, base: Int): List<FieldSource> = TOUCH_PARTS.map {
+    FieldSource(
+        "in.touch.$point.${it.name}",
+        REPORT_ID_INPUT,
+        base + it.byteDelta,
+        it.mask,
+        it.widthBits,
+        "P17",
+    )
+}
+
+/**
+ * One entry per input, as data; the Route trace reads it and InputMapTest checks it against the
+ * parser.
+ */
 val INPUT_MAP: List<FieldSource> = listOf(
     byteField("in.stick.left.x", 1, "P10"),
     byteField("in.stick.left.y", 2, "P10"),

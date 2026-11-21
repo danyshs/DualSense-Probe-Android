@@ -19,9 +19,6 @@ import dev.dsprobe.app.debug.buildCatalogue
 import dev.dsprobe.app.debug.padHeaderFields
 import dev.dsprobe.app.debug.phoneHeaderFields
 import dev.dsprobe.app.debug.renderLog
-import dev.dsprobe.app.ui.padOf
-import dev.dsprobe.pad.FirmwareInfo
-import java.io.File
 import dev.dsprobe.app.live.EventFeed
 import dev.dsprobe.app.live.LiveState
 import dev.dsprobe.app.output.LiveRoute
@@ -29,6 +26,9 @@ import dev.dsprobe.app.output.OutputController
 import dev.dsprobe.app.output.PendingAsk
 import dev.dsprobe.app.pad.FoundPad
 import dev.dsprobe.app.pad.PadFinder
+import dev.dsprobe.app.ui.padOf
+import dev.dsprobe.pad.FirmwareInfo
+import java.io.File
 
 private const val TAG = "PadSession"
 
@@ -45,15 +45,23 @@ class PadSession(context: Context) : RouteHost {
     val feed = EventFeed()
     val androidRoute = AndroidRoute(context, live, feed)
     val controller = RouteController(this, ::logWarn)
-    val outputs = OutputController(::liveRoute, SystemClock::uptimeMillis, ::logWarn, ::noteChangedAnswer)
+    val outputs =
+        OutputController(::liveRoute, SystemClock::uptimeMillis, ::logWarn, ::noteChangedAnswer)
     val debug = DebugHub(feed)
 
     // the developer's "did it change?" goes into the trace next to what Android said
     private fun noteChangedAnswer(ask: PendingAsk, changed: Boolean) {
-        if (feed.isActive) feed.publish(changedAnswerEvent(System.nanoTime(), ask.kind, ask.sent, ask.answer, changed))
+        if (feed.isActive) {
+            feed.publish(
+                changedAnswerEvent(System.nanoTime(), ask.kind, ask.sent, ask.answer, changed),
+            )
+        }
     }
 
-    /** What the runner needs from the app: the live route, the route switches, sends, and Android mode's locks. */
+    /**
+     * What the runner needs from the app: the live route, the route switches, sends, and Android
+     * mode's locks.
+     */
     fun runnerEnv(): RunnerEnv = object : RunnerEnv {
         override fun currentRoute(): Route? = when (controller.state.value) {
             is RouteState.AndroidMode -> Route.ANDROID
@@ -62,13 +70,20 @@ class PadSession(context: Context) : RouteHost {
         }
 
         override fun requestRoute(route: Route) {
-            if (route == Route.DIRECT_USB) controller.switchToDirectUsb() else controller.backToAndroidMode()
+            if (route == Route.DIRECT_USB) {
+                controller.switchToDirectUsb()
+            } else {
+                controller.backToAndroidMode()
+            }
         }
 
-        override fun send(req: OutputRequest): ApiAnswer = liveRoute()?.route?.send(req) ?: ApiAnswer.Failed("no pad is live")
+        override fun send(req: OutputRequest): ApiAnswer =
+            liveRoute()?.route?.send(req) ?: ApiAnswer.Failed("no pad is live")
 
         // no answers at all means nothing is offered
-        override fun isLocked(feature: Feature): Boolean = androidRoute.answers.value?.let { a -> reductions(a).any { it.feature == feature } } ?: true
+        override fun isLocked(feature: Feature): Boolean =
+            androidRoute.answers.value?.let { a -> reductions(a).any { it.feature == feature } }
+                ?: true
 
         override fun setMuteWatched(on: Boolean) {
             androidRoute.muteWatched = on
@@ -77,7 +92,8 @@ class PadSession(context: Context) : RouteHost {
         override fun muteKeyCode(): Int? = androidRoute.answers.value?.muteKeyCode
     }
 
-    fun newRunner(): DebugRunner = DebugRunner(buildCatalogue(), runnerEnv(), SystemClock::uptimeMillis)
+    fun newRunner(): DebugRunner =
+        DebugRunner(buildCatalogue(), runnerEnv(), SystemClock::uptimeMillis)
 
     /** The record the crash handler wrote last time the app crashed; null when it never did. */
     fun crashRecord(): String? {
@@ -85,24 +101,56 @@ class PadSession(context: Context) : RouteHost {
         return if (file.isFile) file.readText().take(AppLimits.CRASH_RECORD_BYTES_MAX) else null
     }
 
-    /** The whole log as text: header, Android's view, the results, the trace rows, the crash record, the footer. */
+    /**
+     * The whole log as text: header, Android's view, the results, the trace rows, the crash record,
+     * the footer.
+     */
     fun exportLog(results: List<TestResult>): String {
         val pad = padOf(controller.state.value)
         // a header that cannot be read must not stop the log: say so in its place
-        val phone = askOrNull("phone header", ::logWarn) { phoneHeaderFields(appContext) } ?: listOf("header" to "unavailable")
+        val phone =
+            askOrNull("phone header", ::logWarn) { phoneHeaderFields(appContext) }
+                ?: listOf("header" to "unavailable")
         val header = phone +
-            padHeaderFields(pad?.productId, pad?.transport, pad?.alsoPairedBluetooth ?: false, lastFirmware)
+            padHeaderFields(
+                pad?.productId,
+                pad?.transport,
+                pad?.alsoPairedBluetooth ?: false,
+                lastFirmware,
+            )
         val stats = debug.stats
-        val footer = LogFooter(stats.reportsReceived, stats.reportsDropped, stats.longestGapMs, debug.feedOverflow, debug.trace.axisRowsSkipped, androidRoute.lateEventsDropped)
-        val crash = askOrNull("crash record", ::logWarn) { crashRecord().orEmpty() }?.ifEmpty { null }
-        return renderLog(LogInput(header, androidRoute.answers.value ?: lastAnswers, results, debug.logRows(), crash, footer, debug.tour.answers))
+        val footer =
+            LogFooter(
+                stats.reportsReceived,
+                stats.reportsDropped,
+                stats.longestGapMs,
+                debug.feedOverflow,
+                debug.trace.axisRowsSkipped,
+                androidRoute.lateEventsDropped,
+            )
+        val crash = askOrNull("crash record", ::logWarn) {
+            crashRecord().orEmpty()
+        }?.ifEmpty { null }
+        return renderLog(
+            LogInput(
+                header,
+                androidRoute.answers.value ?: lastAnswers,
+                results,
+                debug.logRows(),
+                crash,
+                footer,
+                debug.tour.answers,
+            ),
+        )
     }
 
     /** The debug "Crash now" button exists only in a debuggable build. */
-    val crashNowAvailable: Boolean = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+    val crashNowAvailable: Boolean =
+        context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
     private val finder = PadFinder(context)
-    private val usbManager: UsbManager = checkNotNull(context.getSystemService(UsbManager::class.java)) { "no UsbManager" }
+    private val usbManager: UsbManager =
+        checkNotNull(context.getSystemService(UsbManager::class.java)) { "no UsbManager" }
     private val permission = UsbPermission(context, ::logWarn)
     private val handler = Handler(Looper.getMainLooper())
     private val timers = HashMap<RouteTimer, Runnable>()
@@ -132,7 +180,8 @@ class PadSession(context: Context) : RouteHost {
         direct?.crashWriterNow()
     }
 
-    // the route outputs go to: the claim while Direct USB is open, else Android mode while it is live
+    // the route outputs go to: the claim while Direct USB is open, else Android mode while it is
+    // live
     private fun liveRoute(): LiveRoute? = direct?.let { LiveRoute(it, Route.DIRECT_USB) }
         ?: if (androidRoute.isLive) LiveRoute(androidRoute, Route.ANDROID) else null
 
@@ -158,14 +207,20 @@ class PadSession(context: Context) : RouteHost {
             controller.post(RouteEvent.PermissionResult(true))
             return
         }
-        val asked = permission.request(usbManager, device) { granted -> controller.post(RouteEvent.PermissionResult(granted)) }
+        val asked = permission.request(usbManager, device) { granted ->
+            controller.post(RouteEvent.PermissionResult(granted))
+        }
         if (!asked) controller.post(RouteEvent.PermissionResult(false))
     }
 
     override fun openDirectUsb(pad: FoundPad) {
         check(direct == null) { "a Direct USB route is already open" }
         val device = pad.usbDevice
-        val outcome = if (device == null) OpenOutcome(OpenResult.WrongLayout("no USB device"), null) else claimHidInterface(usbManager, device, ::logWarn)
+        val outcome = if (device == null) {
+            OpenOutcome(OpenResult.WrongLayout("no USB device"), null)
+        } else {
+            claimHidInterface(usbManager, device, ::logWarn)
+        }
         outcome.link?.let { link ->
             val route = DirectUsbRoute(link, live, feed, ::onRouteFault, ::logWarn)
             direct = route

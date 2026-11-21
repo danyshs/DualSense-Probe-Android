@@ -13,11 +13,15 @@ private const val STICK_HALF_RANGE_COUNTS = AppLimits.COUNTS_PER_BYTE_MAX / 2f
 const val STICK_EDGE_UNITS = 1f - AppLimits.STICK_EDGE_TOLERANCE_COUNTS / STICK_HALF_RANGE_COUNTS
 
 /** Trigger reached: 247 or more counts of 255 (0.97). */
-const val TRIGGER_REACHED_UNITS = AppLimits.TRIGGER_REACHED_COUNTS_MIN / AppLimits.COUNTS_PER_BYTE_MAX
+const val TRIGGER_REACHED_UNITS =
+    AppLimits.TRIGGER_REACHED_COUNTS_MIN / AppLimits.COUNTS_PER_BYTE_MAX
 
 private fun buttonId(b: Button) = "in.button.${b.name.lowercase()}"
 
-/** Every control's current value, the same scale on both routes: buttons 0 or 1, sticks -1..1, triggers 0..1, D-pad as its index, touch contacts 0 or 1. */
+/**
+ * Every control's current value, the same scale on both routes: buttons 0 or 1, sticks -1..1,
+ * triggers 0..1, D-pad as its index, touch contacts 0 or 1.
+ */
 fun samplesOf(s: PadState): Map<String, Float> {
     val out = HashMap<String, Float>()
     out["in.stick.left.x"] = s.leftX
@@ -30,17 +34,35 @@ fun samplesOf(s: PadState): Map<String, Float> {
     for (b in Button.entries) out[buttonId(b)] = if (b in s.held) 1f else 0f
     out["in.touch.0"] = if (s.touches.isNotEmpty()) 1f else 0f
     out["in.touch.1"] = if (s.touches.size >= 2) 1f else 0f
-    s.gyro?.let { out["in.gyro.x"] = it.x; out["in.gyro.y"] = it.y; out["in.gyro.z"] = it.z }
-    s.accel?.let { out["in.accel.x"] = it.x; out["in.accel.y"] = it.y; out["in.accel.z"] = it.z }
+    s.gyro?.let {
+        out["in.gyro.x"] = it.x
+        out["in.gyro.y"] = it.y
+        out["in.gyro.z"] = it.z
+    }
+    s.accel?.let {
+        out["in.accel.x"] = it.x
+        out["in.accel.y"] = it.y
+        out["in.accel.z"] = it.z
+    }
     return out
 }
 
-private fun isMotion(control: String) = control.startsWith("in.gyro") || control.startsWith("in.accel")
+private fun isMotion(control: String) =
+    control.startsWith("in.gyro") || control.startsWith("in.accel")
 
-/** How far a control may move before it counts as touched: 8 counts of 255, on the scale the sample uses. */
+/**
+ * How far a control may move before it counts as touched: 8 counts of 255, on the scale the sample
+ * uses.
+ */
 fun noiseUnits(control: String): Float = when {
-    control.startsWith("in.stick.") -> AppLimits.CROSS_TALK_THRESHOLD_COUNTS / STICK_HALF_RANGE_COUNTS
-    control.startsWith("in.trigger.") -> AppLimits.CROSS_TALK_THRESHOLD_COUNTS / AppLimits.COUNTS_PER_BYTE_MAX
+    control.startsWith("in.stick.") ->
+        AppLimits.CROSS_TALK_THRESHOLD_COUNTS /
+            STICK_HALF_RANGE_COUNTS
+
+    control.startsWith("in.trigger.") ->
+        AppLimits.CROSS_TALK_THRESHOLD_COUNTS /
+            AppLimits.COUNTS_PER_BYTE_MAX
+
     else -> PRESSED_RATIO_MIN
 }
 
@@ -58,13 +80,21 @@ class InputMatcher(private val id: InputId) {
     private val distinct = HashSet<Float>()
 
     fun accept(samples: Map<String, Float>): Boolean {
-        val control = controlOfTest(id)
+        val value = samples[controlOfTest(id)]
         return when {
-            id.id.startsWith("in.dpad.") -> samples[control] == Dpad.valueOf(id.id.removePrefix("in.dpad.").uppercase()).ordinal.toFloat()
-            id.id.startsWith("in.stick.") -> sticksBothEnds(samples[control] ?: return false)
-            id.id.startsWith("in.trigger.") -> (samples[control] ?: return false) >= TRIGGER_REACHED_UNITS
+            id.id.startsWith("in.dpad.") ->
+                value == Dpad.valueOf(id.id.removePrefix("in.dpad.").uppercase()).ordinal.toFloat()
+
             isMotion(id.id) -> varies(samples)
-            else -> (samples[control] ?: return false) >= PRESSED_RATIO_MIN
+
+            // every other test reads its own control; no sample is no match
+            value == null -> false
+
+            id.id.startsWith("in.stick.") -> sticksBothEnds(value)
+
+            id.id.startsWith("in.trigger.") -> value >= TRIGGER_REACHED_UNITS
+
+            else -> value >= PRESSED_RATIO_MIN
         }
     }
 
@@ -86,19 +116,31 @@ class InputMatcher(private val id: InputId) {
 
 /**
  * The first control, other than the target and its companions, that moved past its noise threshold
- * since [baseline]; null when none did. Motion sensors are always ignored: a pressed button tips the pad.
+ * since [baseline]; null when none did. Motion sensors are always ignored: a pressed button tips
+ * the pad.
  */
-fun crossTalkCulprit(baseline: Map<String, Float>, now: Map<String, Float>, target: InputId, companions: Set<InputId>): String? {
+fun crossTalkCulprit(
+    baseline: Map<String, Float>,
+    now: Map<String, Float>,
+    target: InputId,
+    companions: Set<InputId>,
+): String? {
     val targetControl = controlOfTest(target)
-    for ((control, value) in now) {
-        if (isMotion(control) || control == targetControl || control.startsWith(target.id)) continue
-        if (companions.any { control.startsWith(it.id) }) continue
-        val before = baseline[control] ?: continue
-        val moved = abs(value - before) > noiseUnits(control)
-        // a release of something already held is not a press
-        val isRelease = (control.startsWith("in.button.") || control.startsWith("in.touch.")) && value < before ||
-            control == "in.dpad" && value == Dpad.NONE.ordinal.toFloat()
-        if (moved && !isRelease) return control
-    }
-    return null
+    fun isOwn(control: String): Boolean =
+        isMotion(control) || control == targetControl || control.startsWith(target.id) ||
+            companions.any { control.startsWith(it.id) }
+    return now.entries.firstOrNull { (control, value) ->
+        val before = baseline[control]
+        before != null && !isOwn(control) && isPress(control, before, value)
+    }?.key
+}
+
+/** [control] moved from [before] to [value] by more than noise, and not as a release. */
+private fun isPress(control: String, before: Float, value: Float): Boolean {
+    val moved = abs(value - before) > noiseUnits(control)
+    // a release of something already held is not a press
+    val isHoldable = control.startsWith("in.button.") || control.startsWith("in.touch.")
+    val isDpadRelease = control == "in.dpad" && value == Dpad.NONE.ordinal.toFloat()
+    val isRelease = (isHoldable && value < before) || isDpadRelease
+    return moved && !isRelease
 }

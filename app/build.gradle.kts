@@ -5,16 +5,18 @@ plugins {
 }
 
 // the short commit of the tree being built, for the log header; "unknown" outside a git checkout
-fun gitCommit(): String =
-    try {
-        val out = providers.exec {
-            commandLine("git", "rev-parse", "--short", "HEAD")
-            isIgnoreExitValue = true
-        }
-        out.standardOutput.asText.get().trim().ifEmpty { "unknown" }
-    } catch (e: Exception) {
-        "unknown"
+// no git binary: the build still runs, stamped "unknown"; Gradle's exec failure type is internal,
+// so there is no public narrower type to catch
+@Suppress("TooGenericExceptionCaught")
+fun gitCommit(): String = try {
+    val out = providers.exec {
+        commandLine("git", "rev-parse", "--short", "HEAD")
+        isIgnoreExitValue = true
     }
+    out.standardOutput.asText.get().trim().ifEmpty { "unknown" }
+} catch (expected: Exception) {
+    "unknown"
+}
 
 android {
     namespace = "dev.dsprobe.app"
@@ -48,8 +50,10 @@ android {
         checkDependencies = false
         // each disabled check has its reason; none is turned off to hide a finding in our own code
         disable += "OldTargetApi" // target 35 is the newest platform AGP 8.4.2 builds against
-        disable += "AndroidGradlePluginVersion" // AGP 8.4.2 is the cached one; moving it is its own change
-        disable += "GradleDependency" // Jetpack pins stay at what AGP 8.4.2 accepts (see libs.versions.toml)
+        // AGP 8.4.2 is the cached one; moving it is its own change
+        disable += "AndroidGradlePluginVersion"
+        // Jetpack pins stay at what AGP 8.4.2 accepts (see libs.versions.toml)
+        disable += "GradleDependency"
         disable += "LockedOrientationActivity" // the design locks the app to portrait
         disable += "DiscouragedApi" // same portrait lock, reported a second time
     }
@@ -82,7 +86,10 @@ tasks.withType<Test>().configureEach {
         override fun afterTest(testDescriptor: TestDescriptor, result: TestResult) {}
         override fun afterSuite(suite: TestDescriptor, result: TestResult) {
             if (suite.parent != null) return
-            println("app tests: ${result.testCount} run, ${result.failedTestCount} failed, ${result.skippedTestCount} skipped")
+            println(
+                "app tests: ${result.testCount} run, ${result.failedTestCount} failed, " +
+                    "${result.skippedTestCount} skipped",
+            )
             check(result.testCount > 0) { "no tests ran" }
         }
     })

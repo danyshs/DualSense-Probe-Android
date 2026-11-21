@@ -55,7 +55,13 @@ class GuidedReactionTest {
         tour.markTried()
         tour.answer(Verdict.WORKS, "")
         val lines = tourLines(tour.answers)
-        assertTrue(lines.toString(), lines.any { it.startsWith("endpoint id=out.mute_led") && "answer=WORKS" in it })
+        assertTrue(
+            lines.toString(),
+            lines.any {
+                it.startsWith("endpoint id=out.mute_led") &&
+                    "answer=WORKS" in it
+            },
+        )
         assertEquals(listOf("WORKS", "DOESNT", "NOT_SURE"), Verdict.entries.map { it.name })
     }
 
@@ -63,11 +69,23 @@ class GuidedReactionTest {
         val tour = tourAt("out.lightbar")
         val card = tour.current!!
         val rows = listOf(
-            TraceRow(10L, Route.DIRECT_USB, "in.button.cross", "x", "Cross  pressed", "report 0x01"),
+            TraceRow(
+                10L,
+                Route.DIRECT_USB,
+                "in.button.cross",
+                "x",
+                "Cross  pressed",
+                "report 0x01",
+            ),
             TraceRow(30L, Route.DIRECT_USB, "out.lightbar", "x", "Lightbar  newer", "sent ok"),
             TraceRow(20L, Route.DIRECT_USB, "out.lightbar", "x", "Lightbar  older", "sent ok"),
         )
-        assertEquals(listOf("Lightbar  newer", "Lightbar  older"), sheetLines(rows, emptyList(), card, false).map { it.headline })
+        assertEquals(
+            listOf("Lightbar  newer", "Lightbar  older"),
+            sheetLines(rows, emptyList(), card, false).map {
+                it.headline
+            },
+        )
         assertEquals(3, sheetLines(rows, emptyList(), card, true).size)
         assertEquals("Lightbar  newer", sheetLines(rows, emptyList(), card, true).first().headline)
     }

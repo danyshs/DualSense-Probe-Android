@@ -19,9 +19,18 @@ fun interface ReportSink {
     fun send(report: ByteArray): Boolean
 }
 
-/** Told after every send, on the writer thread: the report, what it carried, and whether the pad took it. Must not throw. */
+/**
+ * Told after every send, on the writer thread: the report, what it carried, and whether the pad
+ * took it. Must not throw.
+ */
 fun interface SendObserver {
-    fun sent(report: ByteArray, fields: Set<OutputField>, ok: Boolean, isFinal: Boolean, isResend: Boolean)
+    fun sent(
+        report: ByteArray,
+        fields: Set<OutputField>,
+        ok: Boolean,
+        isFinal: Boolean,
+        isResend: Boolean,
+    )
 }
 
 private sealed interface Plan {
@@ -37,10 +46,12 @@ private sealed interface Plan {
 }
 
 /**
- * The one copy of what the pad should be doing, and the one thread that sends it. UI calls [change];
+ * The one copy of what the pad should be doing, and the one thread that sends it. UI calls
+ * [change];
  * the writer thread takes the state and the dirty set together and sends one report for them, so a
  * newer value overwrites an older one per field and nothing is dropped. [finish] queues the all-off
- * report as the very last one: after any pending change, instead of any resend, and nothing after it.
+ * report as the very last one: after any pending change, instead of any resend, and nothing after
+ * it.
  * Only fields the app has set are resent: entering Direct USB never repaints LEDs nobody asked for.
  */
 class OutputWriter(
@@ -86,7 +97,10 @@ class OutputWriter(
     var droppedAfterCloseCount = 0L
         private set
 
-    /** The motor values in the last rumble-carrying report the pad took: what it was told, not what it felt. */
+    /**
+     * The motor values in the last rumble-carrying report the pad took: what it was told, not what
+     * it felt.
+     */
     @Volatile
     var rumbleSent = MotorLevels.OFF
         private set
@@ -94,7 +108,9 @@ class OutputWriter(
     /** The rumble flags in use now. */
     val rumbleMode: RumbleMode get() = lock.withLock { state.rumbleMode }
 
-    /** Edits the one state and marks [field] dirty. False (and counted) once the release has begun. */
+    /**
+     * Edits the one state and marks [field] dirty. False (and counted) once the release has begun.
+     */
     fun change(field: OutputField, edit: (OutputState) -> OutputState): Boolean = lock.withLock {
         if (closing) {
             droppedAfterCloseCount += 1
@@ -107,14 +123,19 @@ class OutputWriter(
         true
     }
 
-    /** Picks the rumble flags the firmware understands. Not a change to send: nothing goes out until rumble is asked for. */
+    /**
+     * Picks the rumble flags the firmware understands. Not a change to send: nothing goes out until
+     * rumble is asked for.
+     */
     fun setRumbleMode(mode: RumbleMode) = lock.withLock {
         state = state.copy(rumbleMode = mode)
     }
 
     /**
-     * Rumble that stops by itself: the writer zeroes it at the deadline, so a stalled UI can't keep the
-     * pad rumbling. Both motors at 0 means stop now. False (and counted) once the release has begun.
+     * Rumble that stops by itself: the writer zeroes it at the deadline, so a stalled UI can't keep
+     * the
+     * pad rumbling. Both motors at 0 means stop now. False (and counted) once the release has
+     * begun.
      */
     fun setRumble(left: UByte, right: UByte, durationMs: Int): Boolean = lock.withLock {
         require(durationMs in 1..Limits.RUMBLE_DURATION_MS_MAX) { "rumble duration $durationMs ms" }
@@ -135,7 +156,8 @@ class OutputWriter(
     /**
      * A rumble pattern, played by the writer itself: it moves to each step on time and zeroes both
      * motors when the last one ends, so a stalled UI can't keep the pad rumbling. The whole pattern
-     * must fit inside [Limits.RUMBLE_DURATION_MS_MAX]. False (and counted) once the release has begun.
+     * must fit inside [Limits.RUMBLE_DURATION_MS_MAX]. False (and counted) once the release has
+     * begun.
      */
     fun playRumble(steps: List<RumbleStep>): Boolean = lock.withLock {
         require(steps.isNotEmpty()) { "rumble pattern has no steps" }
@@ -157,44 +179,58 @@ class OutputWriter(
     }
 
     /**
-     * A trigger effect that ends by itself: the writer sets it back to off at the deadline, so a stalled
-     * UI can't leave a trigger stiff. [TriggerEffect.OFF] clears it now. False (and counted) once the
+     * A trigger effect that ends by itself: the writer sets it back to off at the deadline, so a
+     * stalled
+     * UI can't leave a trigger stiff. [TriggerEffect.OFF] clears it now. False (and counted) once
+     * the
      * release has begun.
      */
-    fun setTrigger(isRight: Boolean, effect: TriggerEffect, durationMs: Int): Boolean = lock.withLock {
-        require(durationMs in 1..Limits.TRIGGER_EFFECT_DURATION_MS_MAX) { "trigger duration $durationMs ms" }
-        if (closing) {
-            droppedAfterCloseCount += 1
-            return@withLock false
+    fun setTrigger(isRight: Boolean, effect: TriggerEffect, durationMs: Int): Boolean =
+        lock.withLock {
+            require(durationMs in 1..Limits.TRIGGER_EFFECT_DURATION_MS_MAX) {
+                "trigger duration $durationMs ms"
+            }
+            if (closing) {
+                droppedAfterCloseCount += 1
+                return@withLock false
+            }
+            val deadlineMs = if (effect == TriggerEffect.OFF) null else nowMs() + durationMs
+            val field = if (isRight) OutputField.RIGHT_TRIGGER else OutputField.LEFT_TRIGGER
+            if (isRight) {
+                state = state.copy(r2Effect = effect)
+                rightTriggerDeadlineMs = deadlineMs
+            } else {
+                state = state.copy(l2Effect = effect)
+                leftTriggerDeadlineMs = deadlineMs
+            }
+            dirty.add(field)
+            touched.add(field)
+            poke()
+            true
         }
-        val deadlineMs = if (effect == TriggerEffect.OFF) null else nowMs() + durationMs
-        val field = if (isRight) OutputField.RIGHT_TRIGGER else OutputField.LEFT_TRIGGER
-        if (isRight) {
-            state = state.copy(r2Effect = effect)
-            rightTriggerDeadlineMs = deadlineMs
-        } else {
-            state = state.copy(l2Effect = effect)
-            leftTriggerDeadlineMs = deadlineMs
-        }
-        dirty.add(field)
-        touched.add(field)
-        poke()
-        true
-    }
 
-    /** Begins the release: the all-off report goes out last, then the writer is done. Safe to call twice. */
+    /**
+     * Begins the release: the all-off report goes out last, then the writer is done. Safe to call
+     * twice.
+     */
     fun finish() = lock.withLock {
         closing = true
         poke()
     }
 
-    /** The crash path: nothing is sent after this, not even the all-off (the crash handler sends its own). */
+    /**
+     * The crash path: nothing is sent after this, not even the all-off (the crash handler sends its
+     * own).
+     */
     fun halt() {
         halted = true
         lock.withLock { poke() }
     }
 
-    /** Debug button: the writer thread throws on its next pass, to prove the crash handler hands the pad back. */
+    /**
+     * Debug button: the writer thread throws on its next pass, to prove the crash handler hands the
+     * pad back.
+     */
     fun crashNow() {
         crashRequested = true
         lock.withLock { poke() }
@@ -216,9 +252,15 @@ class OutputWriter(
         expireTriggers(now)
         advanceRumble(now)
         val next = planSends(now)
-        val wakeAt = listOfNotNull(nextRumbleWakeMs(), rightTriggerDeadlineMs, leftTriggerDeadlineMs).minOrNull()
+        val wakeAt = listOfNotNull(
+            nextRumbleWakeMs(),
+            rightTriggerDeadlineMs,
+            leftTriggerDeadlineMs,
+        ).minOrNull()
         // never sleep past the moment the rumble steps on or a rumble or trigger has to stop
-        if (next is Plan.Wait && wakeAt != null) return Plan.Wait(minOf(next.ms, (wakeAt - now).coerceAtLeast(1L)))
+        if (next is Plan.Wait && wakeAt != null) {
+            return Plan.Wait(minOf(next.ms, (wakeAt - now).coerceAtLeast(1L)))
+        }
         return next
     }
 
@@ -235,7 +277,11 @@ class OutputWriter(
         val index = stepIndexAt(steps, now - rumbleStartMs) ?: return
         if (index == rumbleStepIndex) return
         rumbleStepIndex = index
-        state = state.copy(rumbleLeft = steps[index].left.toUByte(), rumbleRight = steps[index].right.toUByte())
+        state =
+            state.copy(
+                rumbleLeft = steps[index].left.toUByte(),
+                rumbleRight = steps[index].right.toUByte(),
+            )
         dirty.add(OutputField.RUMBLE)
     }
 
@@ -267,34 +313,73 @@ class OutputWriter(
     private fun planSends(now: Long): Plan {
         val sinceSendMs = lastSendMs?.let { now - it } ?: Long.MAX_VALUE
         val finalDue = closing && !finalPlanned
-        if (dirty.isNotEmpty() || finalDue) {
-            if (sinceSendMs < Limits.OUTPUT_INTERVAL_MS_MIN) return Plan.Wait(Limits.OUTPUT_INTERVAL_MS_MIN - sinceSendMs)
-            lastSendMs = now
-            if (dirty.isNotEmpty()) return sendDirty()
-            finalPlanned = true
-            return Plan.Send(allOffReport(), RELEASE_FIELDS, isFinal = true, rumble = MotorLevels.OFF)
+        return when {
+            dirty.isNotEmpty() || finalDue -> planChange(now, sinceSendMs)
+            closing -> Plan.Done
+            else -> planResend(now, sinceSendMs)
         }
-        if (closing) return Plan.Done
-        if (touched.isEmpty()) return Plan.Wait(Limits.OUTPUT_RESEND_INTERVAL_MS.toLong())
-        if (sinceSendMs < Limits.OUTPUT_RESEND_INTERVAL_MS) return Plan.Wait(Limits.OUTPUT_RESEND_INTERVAL_MS - sinceSendMs)
-        lastSendMs = now
-        return Plan.Send(buildUsbOutput(state, touched), EnumSet.copyOf(touched), isFinal = false, rumble = rumbleIn(touched), isResend = true)
     }
 
-    private fun rumbleIn(fields: Set<OutputField>): MotorLevels? =
-        if (OutputField.RUMBLE in fields) MotorLevels(state.rumbleLeft.toInt(), state.rumbleRight.toInt()) else null
+    /** A changed field, or the final all-off report, once the minimum gap has passed. */
+    private fun planChange(now: Long, sinceSendMs: Long): Plan {
+        if (sinceSendMs < Limits.OUTPUT_INTERVAL_MS_MIN) {
+            return Plan.Wait(Limits.OUTPUT_INTERVAL_MS_MIN - sinceSendMs)
+        }
+        lastSendMs = now
+        if (dirty.isNotEmpty()) return sendDirty()
+        finalPlanned = true
+        return Plan.Send(
+            allOffReport(),
+            RELEASE_FIELDS,
+            isFinal = true,
+            rumble = MotorLevels.OFF,
+        )
+    }
+
+    /** Nothing changed: resend what was set, at the resend interval, so the pad keeps it. */
+    private fun planResend(now: Long, sinceSendMs: Long): Plan {
+        if (touched.isEmpty()) return Plan.Wait(Limits.OUTPUT_RESEND_INTERVAL_MS.toLong())
+        if (sinceSendMs < Limits.OUTPUT_RESEND_INTERVAL_MS) {
+            return Plan.Wait(Limits.OUTPUT_RESEND_INTERVAL_MS - sinceSendMs)
+        }
+        lastSendMs = now
+        return Plan.Send(
+            buildUsbOutput(state, touched),
+            EnumSet.copyOf(touched),
+            isFinal = false,
+            rumble = rumbleIn(touched),
+            isResend = true,
+        )
+    }
+
+    private fun rumbleIn(fields: Set<OutputField>): MotorLevels? = if (OutputField.RUMBLE in
+        fields
+    ) {
+        MotorLevels(state.rumbleLeft.toInt(), state.rumbleRight.toInt())
+    } else {
+        null
+    }
 
     private fun sendDirty(): Plan {
         val fields: Set<OutputField> = EnumSet.copyOf(dirty)
         dirty.clear()
-        return Plan.Send(buildUsbOutput(state, fields), fields, isFinal = false, rumble = rumbleIn(fields))
+        return Plan.Send(
+            buildUsbOutput(state, fields),
+            fields,
+            isFinal = false,
+            rumble = rumbleIn(fields),
+        )
     }
 
     private fun deliver(job: Plan.Send) {
-        check(job.report.size == Limits.USB_OUTPUT_REPORT_BYTES) { "output report is ${job.report.size} bytes" }
+        check(job.report.size == Limits.USB_OUTPUT_REPORT_BYTES) {
+            "output report is ${job.report.size} bytes"
+        }
         val ok = sink.send(job.report)
         // tracing must never get in the way of the pad
-        boundary("send observer", log) { observer.sent(job.report, job.fields, ok, job.isFinal, job.isResend) }
+        boundary("send observer", log) {
+            observer.sent(job.report, job.fields, ok, job.isFinal, job.isResend)
+        }
         lock.withLock {
             if (ok) {
                 sentCount += 1
@@ -304,7 +389,8 @@ class OutputWriter(
             }
             failedCount += 1
             failuresInARow += 1
-            // a failed change goes out again on the next pass; a failed final report is logged, not retried
+            // a failed change goes out again on the next pass; a failed final report is logged, not
+            // retried
             if (!job.isFinal) dirty.addAll(job.fields)
         }
         log("output report not taken (${job.fields})")
@@ -317,7 +403,11 @@ class OutputWriter(
             if (over) failingReported = true
             over
         }
-        if (tell) onFailing("output reports failing: ${AppLimits.SEND_FAILURES_IN_A_ROW_MAX} in a row")
+        if (tell) {
+            onFailing(
+                "output reports failing: ${AppLimits.SEND_FAILURES_IN_A_ROW_MAX} in a row",
+            )
+        }
     }
 
     /**
@@ -329,7 +419,9 @@ class OutputWriter(
         val job = lock.withLock { plan(nowMs()) }
         return when (job) {
             Plan.Done -> null
+
             is Plan.Wait -> job.ms
+
             is Plan.Send -> {
                 deliver(job)
                 0L

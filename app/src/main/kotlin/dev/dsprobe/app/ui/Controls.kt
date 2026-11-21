@@ -31,20 +31,41 @@ private val MIN_BUTTON = Modifier.heightIn(min = TOUCH_TARGET_DP.dp)
 
 /** The one filled button of a screen. */
 @Composable
-fun PrimaryButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) {
+fun PrimaryButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit,
+) {
     Button(onClick, modifier.then(MIN_BUTTON), enabled = enabled, content = content)
 }
 
 /** A quieter filled button for the other actions. */
 @Composable
-fun TonalButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) {
+fun TonalButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit,
+) {
     FilledTonalButton(onClick, modifier.then(MIN_BUTTON), enabled = enabled, content = content)
 }
 
 /** An outlined button for choices and secondary actions. */
 @Composable
-fun QuietButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) {
-    OutlinedButton(onClick, modifier.then(MIN_BUTTON), enabled = enabled, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline), content = content)
+fun QuietButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit,
+) {
+    OutlinedButton(
+        onClick,
+        modifier.then(MIN_BUTTON),
+        enabled = enabled,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        content = content,
+    )
 }
 
 /** A button label: one line, words never broken. */
@@ -56,8 +77,16 @@ fun OneLine(textRes: Int) {
 /** A group of related content on a card, with a title. */
 @Composable
 fun SectionCard(title: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Card(modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Card(
+        modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        ),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             content()
         }
@@ -67,7 +96,13 @@ fun SectionCard(title: String, modifier: Modifier = Modifier, content: @Composab
 /** A short exclusive choice drawn as a segmented row; [selected] null means none is picked yet. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun <T> Segmented(options: List<Pair<T, Int>>, selected: T?, enabled: Boolean, onPick: (T) -> Unit, modifier: Modifier = Modifier) {
+fun <T> Segmented(
+    options: List<Pair<T, Int>>,
+    selected: T?,
+    enabled: Boolean,
+    onPick: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     SingleChoiceSegmentedButtonRow(modifier.fillMaxWidth()) {
         options.forEachIndexed { index, (value, labelRes) ->
             SegmentedButton(

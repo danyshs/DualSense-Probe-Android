@@ -9,10 +9,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.dsprobe.app.R
@@ -88,8 +88,19 @@ private const val BATTERY_WIDTH_DP = 136 // fits "Battery +0.85/3" in 14 sp mono
 @Composable
 private fun batteryText(battery: Battery?): String = when (battery) {
     is Battery.Percent -> stringResource(R.string.battery_percent, battery.percent)
-    is Battery.RawNibble -> stringResource(R.string.battery_raw, battery.levelNibble, battery.chargingNibble)
-    is Battery.AndroidRaw -> stringResource(R.string.battery_android_raw, signed(battery.capacity), battery.status)
+
+    is Battery.RawNibble -> stringResource(
+        R.string.battery_raw,
+        battery.levelNibble,
+        battery.chargingNibble,
+    )
+
+    is Battery.AndroidRaw -> stringResource(
+        R.string.battery_android_raw,
+        signed(battery.capacity),
+        battery.status,
+    )
+
     null -> stringResource(R.string.battery_unknown)
 }
 
@@ -102,11 +113,19 @@ private fun headphonesText(headphonesIn: Boolean?): String = when (headphonesIn)
 
 @Composable
 private fun ReducedList(reduced: List<Reduction>) {
-    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        Modifier.fillMaxWidth().background(
+            MaterialTheme.colorScheme.surfaceContainerHigh,
+        ).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         for (r in reduced) {
             Column {
                 Text(stringResource(featureNameRes(r.feature)), fontWeight = FontWeight.Bold)
-                Text(stringResource(r.reasonRes, *r.reasonArgs.toTypedArray()), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    reasonText(r),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -115,43 +134,108 @@ private fun ReducedList(reduced: List<Reduction>) {
 /** Route name, transport, battery, the "Functionality reduced" banner and the switch button. */
 @Composable
 fun HeaderStrip(
-    state: RouteState,
+    view: RouteView,
     battery: Battery?,
     headphonesIn: Boolean?,
-    locked: List<Reduction>,
-    answers: AndroidAnswers?,
-    onRefreshAnswers: () -> Unit,
-    onSwitch: () -> Unit,
-    onBack: () -> Unit,
-    onCrashNow: (() -> Unit)?,
+    actions: ScreenActions,
     modifier: Modifier = Modifier,
 ) {
+    val state = view.state
+    val onCrashNow = actions.onCrashNow
     val pad = padOf(state)
     var showReduced by remember { mutableStateOf(false) }
-    Column(modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        modifier.fillMaxWidth().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            val routeName = if (routeOf(state) == Route.ANDROID) R.string.route_android else R.string.route_direct_usb
-            Text(stringResource(routeName), Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, maxLines = 1)
-            if (pad != null) Text(stringResource(R.string.battery_label, batteryText(battery)), Modifier.padding(start = 8.dp).width(BATTERY_WIDTH_DP.dp), style = NumberStyle, textAlign = TextAlign.End, maxLines = 1, softWrap = false)
-        }
-        Text(padLine(pad), Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (state is RouteState.AndroidMode) AndroidBanner(state, locked, showReduced, answers, onRefreshAnswers, onSwitch) { showReduced = !showReduced }
-        if (state is RouteState.DirectUsb) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TonalButton(onClick = onBack) { Text(stringResource(R.string.back_to_android)) }
-                if (onCrashNow != null) TonalButton(onClick = onCrashNow) { Text(stringResource(R.string.crash_now)) }
+            val routeName = if (routeOf(state) == Route.ANDROID) {
+                R.string.route_android
+            } else {
+                R.string.route_direct_usb
             }
-            Text(headphonesText(headphonesIn), style = NumberStyle, maxLines = 1, softWrap = false)
-            if (state.secondPadIgnored) Text(stringResource(R.string.second_pad_ignored), color = MaterialTheme.colorScheme.tertiary)
+            Text(
+                stringResource(routeName),
+                Modifier.weight(1f),
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 1,
+            )
+            if (pad != null) {
+                Text(
+                    stringResource(R.string.battery_label, batteryText(battery)),
+                    Modifier.padding(start = 8.dp).width(BATTERY_WIDTH_DP.dp),
+                    style = NumberStyle,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
         }
-        stateMessageRes(state)?.let { Text(stringResource(it), Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.tertiary) }
+        Text(
+            padLine(pad),
+            Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (state is RouteState.AndroidMode) {
+            AndroidBanner(state, view, showReduced, actions) {
+                showReduced = !showReduced
+            }
+        }
+        if (state is RouteState.DirectUsb) {
+            DirectUsbControls(
+                state,
+                headphonesIn,
+                actions.onBack,
+                onCrashNow,
+            )
+        }
+        stateMessageRes(state)?.let {
+            Text(
+                stringResource(it),
+                Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+        }
+    }
+}
+
+/** Direct USB only: the way back to Android, the crash button when allowed, and headphones. */
+@Composable
+private fun DirectUsbControls(
+    state: RouteState.DirectUsb,
+    headphonesIn: Boolean?,
+    onBack: () -> Unit,
+    onCrashNow: (() -> Unit)?,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TonalButton(onClick = onBack) {
+            Text(stringResource(R.string.back_to_android))
+        }
+        if (onCrashNow != null) {
+            TonalButton(onClick = onCrashNow) {
+                Text(stringResource(R.string.crash_now))
+            }
+        }
+    }
+    Text(headphonesText(headphonesIn), style = NumberStyle, maxLines = 1, softWrap = false)
+    if (state.secondPadIgnored) {
+        Text(
+            stringResource(R.string.second_pad_ignored),
+            color = MaterialTheme.colorScheme.tertiary,
+        )
     }
 }
 
 @Composable
 private fun padLine(pad: FoundPad?): String {
     if (pad == null) return padName(null)
-    val transport = stringResource(if (pad.transport == Transport.USB) R.string.transport_usb else R.string.transport_bluetooth)
+    val transport = stringResource(
+        if (pad.transport == Transport.USB) {
+            R.string.transport_usb
+        } else {
+            R.string.transport_bluetooth
+        },
+    )
     val line = stringResource(R.string.pad_line, padName(pad), transport)
     return if (pad.alsoPairedBluetooth) line + "  " + stringResource(R.string.also_paired) else line
 }
@@ -159,23 +243,36 @@ private fun padLine(pad: FoundPad?): String {
 @Composable
 private fun AndroidBanner(
     state: RouteState.AndroidMode,
-    reduced: List<Reduction>,
+    view: RouteView,
     expanded: Boolean,
-    answers: AndroidAnswers?,
-    onRefreshAnswers: () -> Unit,
-    onSwitch: () -> Unit,
+    actions: ScreenActions,
     onToggle: () -> Unit,
 ) {
+    val reduced = view.locked
+    val answers = view.answers
+    val onRefreshAnswers = actions.onRefreshAnswers
+    val onSwitch = actions.onSwitch
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (state.pad.transport == Transport.BLUETOOTH) {
-            Text(stringResource(R.string.banner_bluetooth), Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.banner_bluetooth_detail), Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(R.string.banner_bluetooth),
+                Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.tertiary,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                stringResource(R.string.banner_bluetooth_detail),
+                Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         if (reduced.isNotEmpty()) {
             Text(
                 stringResource(R.string.banner_reduced, reduced.size),
                 color = MaterialTheme.colorScheme.tertiary,
-                modifier = Modifier.fillMaxWidth().heightIn(min = TOUCH_TARGET_DP.dp).clickable(onClick = onToggle).padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(
+                    min = TOUCH_TARGET_DP.dp,
+                ).clickable(onClick = onToggle).padding(vertical = 8.dp),
             )
             if (expanded) ReducedList(reduced)
         }
@@ -183,6 +280,12 @@ private fun AndroidBanner(
         if (state.pad.transport == Transport.USB) {
             TonalButton(onClick = onSwitch) { Text(stringResource(R.string.switch_to_direct_usb)) }
         }
-        state.notice?.let { Text(stringResource(noticeRes(it.kind), it.detail), Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.tertiary) }
+        state.notice?.let {
+            Text(
+                stringResource(noticeRes(it.kind), it.detail),
+                Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+        }
     }
 }

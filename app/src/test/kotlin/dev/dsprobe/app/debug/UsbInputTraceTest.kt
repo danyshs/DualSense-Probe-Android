@@ -8,7 +8,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** One fixture, the control it must name, and the place the row must give. */
-private class Expect(val fixture: String, val control: String, val place: String, val facts: String, val reader: String)
+private class Expect(
+    val fixture: String,
+    val control: String,
+    val place: String,
+    val facts: String,
+    val reader: String,
+)
 
 private val BUTTON_FIXTURES = listOf(
     Expect("square", "in.button.square", "byte 8 mask 0x10", "P13", "heldButtons"),
@@ -35,8 +41,20 @@ private val ANALOG_FIXTURES = listOf(
     Expect("left-y-max", "in.stick.left.y", "byte 2", "P10", "parseUsbInput leftX..rightY"),
     Expect("right-x-max", "in.stick.right.x", "byte 3", "P10", "parseUsbInput leftX..rightY"),
     Expect("right-y-max", "in.stick.right.y", "byte 4", "P10", "parseUsbInput leftX..rightY"),
-    Expect("touch-0", "in.touch.0.active", "byte 33 mask 0x80", "P17", "touchAt, touchXPx, touchYPx"),
-    Expect("touch-1", "in.touch.1.active", "byte 37 mask 0x80", "P17", "touchAt, touchXPx, touchYPx"),
+    Expect(
+        "touch-0",
+        "in.touch.0.active",
+        "byte 33 mask 0x80",
+        "P17",
+        "touchAt, touchXPx, touchYPx",
+    ),
+    Expect(
+        "touch-1",
+        "in.touch.1.active",
+        "byte 37 mask 0x80",
+        "P17",
+        "touchAt, touchXPx, touchYPx",
+    ),
 )
 
 private fun rowsFrom(idle: String, fixture: String) =
@@ -47,9 +65,15 @@ class UsbInputTraceTest {
         val rows = rowsFrom("idle", e.fixture).filter { it.control == e.control }
         assertEquals("${e.fixture} should change ${e.control} exactly once", 1, rows.size)
         val text = rows.single().text
-        assertTrue("${e.fixture}: place ${e.place} in: $text", text.contains("report 0x01 ${e.place}  raw"))
+        assertTrue(
+            "${e.fixture}: place ${e.place} in: $text",
+            text.contains("report 0x01 ${e.place}  raw"),
+        )
         assertTrue("${e.fixture}: FACTS ${e.facts} in: $text", text.contains("FACTS ${e.facts}  "))
-        assertTrue("${e.fixture}: reader ${e.reader} in: $text", text.endsWith("read by InputParser.kt ${e.reader}"))
+        assertTrue(
+            "${e.fixture}: reader ${e.reader} in: $text",
+            text.endsWith("read by InputParser.kt ${e.reader}"),
+        )
         assertTrue(text.contains("usb"))
     }
 
@@ -67,7 +91,16 @@ class UsbInputTraceTest {
     }
 
     @Test fun theDpadRowNamesTheDirection() {
-        val expected = mapOf("dpad-n" to "0 (N)", "dpad-ne" to "1 (NE)", "dpad-e" to "2 (E)", "dpad-se" to "3 (SE)", "dpad-s" to "4 (S)", "dpad-sw" to "5 (SW)", "dpad-w" to "6 (W)", "dpad-nw" to "7 (NW)")
+        val expected = mapOf(
+            "dpad-n" to "0 (N)",
+            "dpad-ne" to "1 (NE)",
+            "dpad-e" to "2 (E)",
+            "dpad-se" to "3 (SE)",
+            "dpad-s" to "4 (S)",
+            "dpad-sw" to "5 (SW)",
+            "dpad-w" to "6 (W)",
+            "dpad-nw" to "7 (NW)",
+        )
         for ((fixture, direction) in expected) {
             val text = rowsFrom("idle", fixture).single { it.control == "in.dpad" }.text
             assertTrue("$fixture: $text", text.contains("report 0x01 byte 8 mask 0x0f"))
@@ -95,7 +128,12 @@ class UsbInputTraceTest {
     }
 
     @Test fun everyInputFieldHasAParserFunctionNamed() {
-        for (src in INPUT_MAP) assertTrue(src.id, parserReaderOf(src.id).startsWith("InputParser.kt "))
+        for (src in INPUT_MAP) {
+            assertTrue(
+                src.id,
+                parserReaderOf(src.id).startsWith("InputParser.kt "),
+            )
+        }
         assertFalse(INPUT_MAP.isEmpty())
     }
 

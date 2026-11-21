@@ -24,7 +24,10 @@ fun toggleLed(mask: Int, index: Int): Int {
     return mask xor (1 shl index)
 }
 
-/** The raw byte for the location line only: binary, hex, and which LEDs it lights ("0b00010000 = 0x10, LED 5"). */
+/**
+ * The raw byte for the location line only: binary, hex, and which LEDs it lights ("0b00010000 =
+ * 0x10, LED 5").
+ */
 fun ledMaskText(mask: Int): String {
     require(mask in 0..Limits.PLAYER_LED_MASK_MAX) { "led mask $mask" }
     val lit = maskToLeds(mask).withIndex().filter { it.value }.map { it.index + 1 }
@@ -33,5 +36,7 @@ fun ledMaskText(mask: Int): String {
         1 -> "LED " + lit[0]
         else -> "LEDs " + lit.joinToString(", ")
     }
-    return "0b" + Integer.toBinaryString(mask).padStart(Byte.SIZE_BITS, '0') + " = 0x%02x, ".format(mask) + which
+    return "0b" + Integer.toBinaryString(mask).padStart(Byte.SIZE_BITS, '0') +
+        " = 0x%02x, ".format(mask) +
+        which
 }

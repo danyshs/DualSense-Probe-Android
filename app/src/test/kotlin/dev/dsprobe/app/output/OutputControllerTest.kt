@@ -61,7 +61,10 @@ class OutputControllerTest {
         c.setRumble(100, 0)
         rig.now += Limits.RUMBLE_DURATION_MS_MAX + 1
         c.setRumble(100, 0)
-        assertEquals(Limits.RUMBLE_DURATION_MS_MAX, (rig.route.sent.last() as OutputRequest.Rumble).durationMs)
+        assertEquals(
+            Limits.RUMBLE_DURATION_MS_MAX,
+            (rig.route.sent.last() as OutputRequest.Rumble).durationMs,
+        )
     }
 
     @Test fun releasingBothSlidersStopsAtOnceAndAFreshPressStartsAFreshClock() {
@@ -72,7 +75,10 @@ class OutputControllerTest {
         assertEquals(0, stop.left.toInt() + stop.right.toInt())
         assertEquals(0L, c.shown.value.rumbleRemainingMs)
         c.setRumble(10, 0)
-        assertEquals(Limits.RUMBLE_DURATION_MS_MAX, (rig.route.sent.last() as OutputRequest.Rumble).durationMs)
+        assertEquals(
+            Limits.RUMBLE_DURATION_MS_MAX,
+            (rig.route.sent.last() as OutputRequest.Rumble).durationMs,
+        )
     }
 
     @Test fun theCountdownRunsDownOnTicksAndTheShownMotorsReturnToZeroAtTheEnd() {
@@ -173,7 +179,10 @@ class OutputControllerTest {
         val android = Rig(Route.ANDROID)
         android.route.answer = ApiAnswer.Failed("no light named indicator")
         android.controller.setLightbar(rgb(0, 255, 0))
-        assertEquals(ApiAnswer.Failed("no light named indicator"), android.controller.shown.value.lastAnswer)
+        assertEquals(
+            ApiAnswer.Failed("no light named indicator"),
+            android.controller.shown.value.lastAnswer,
+        )
         assertTrue(android.log.single().contains("no light named indicator"))
         android.controller.answerChanged(false)
         assertTrue(android.log.last().contains("Failed(no light named indicator)"))
@@ -202,10 +211,19 @@ class OutputControllerTest {
         c.tick()
         assertEquals("the held colour died with the route", 2, rig.route.sent.size)
         c.setRumble(1, 0)
-        assertEquals(Limits.RUMBLE_DURATION_MS_MAX, (rig.route.sent.last() as OutputRequest.Rumble).durationMs)
+        assertEquals(
+            Limits.RUMBLE_DURATION_MS_MAX,
+            (rig.route.sent.last() as OutputRequest.Rumble).durationMs,
+        )
     }
 
-    private fun trigger(i: Int = -1) = (if (i < 0) rig.route.sent.last() else rig.route.sent[i]) as OutputRequest.Trigger
+    private fun trigger(i: Int = -1) = (
+        if (i < 0) {
+            rig.route.sent.last()
+        } else {
+            rig.route.sent[i]
+        }
+        ) as OutputRequest.Trigger
 
     @Test fun pressingResistSendsTheSlidersValuesWithTheThirtySecondLimit() {
         c.setTriggerLevels(true, 0x40, 0x80)
@@ -222,9 +240,18 @@ class OutputControllerTest {
     @Test fun theForceIsClampedToTheCapAndNeverSentAboveIt() {
         c.setTriggerLevels(false, 0x10, Limits.TRIGGER_FORCE_MAX + 1)
         c.pressTrigger(false)
-        assertEquals(TriggerEffect.resistance(0x10u, Limits.TRIGGER_FORCE_MAX.toUByte()), trigger().effect)
+        assertEquals(
+            TriggerEffect.resistance(0x10u, Limits.TRIGGER_FORCE_MAX.toUByte()),
+            trigger().effect,
+        )
         c.setTriggerLevels(false, 999, 999)
-        assertEquals(TriggerEffect.resistance(AppLimits.TRIGGER_START_MAX.toUByte(), Limits.TRIGGER_FORCE_MAX.toUByte()), trigger().effect)
+        assertEquals(
+            TriggerEffect.resistance(
+                AppLimits.TRIGGER_START_MAX.toUByte(),
+                Limits.TRIGGER_FORCE_MAX.toUByte(),
+            ),
+            trigger().effect,
+        )
     }
 
     @Test fun movingASliderWhileOnResendsAtOnceAndDoesNotExtendTheThirtySeconds() {

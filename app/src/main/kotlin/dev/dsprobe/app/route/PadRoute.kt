@@ -2,21 +2,24 @@ package dev.dsprobe.app.route
 
 import dev.dsprobe.pad.AudioRoute
 import dev.dsprobe.pad.MuteLed
-import dev.dsprobe.pad.RumbleMode
 import dev.dsprobe.pad.Rgb
+import dev.dsprobe.pad.RumbleMode
 import dev.dsprobe.pad.TriggerEffect
 
 /** What the Outputs panel can ask of a route; each route answers per request. */
 sealed interface OutputRequest {
     data class Rumble(val left: UByte, val right: UByte, val durationMs: Int) : OutputRequest
+
     /** A timed rumble pattern; the route plays it and it ends by itself. */
     data class RumblePattern(val steps: List<RumbleStep>) : OutputRequest
     data class SetRumbleMode(val mode: RumbleMode) : OutputRequest
     data class Lightbar(val rgb: Rgb) : OutputRequest
     data class PlayerLeds(val mask: Int) : OutputRequest
     data class SetMuteLed(val mode: MuteLed) : OutputRequest
+
     /** A trigger effect that the route sets back to off after [durationMs]. */
-    data class Trigger(val isRight: Boolean, val effect: TriggerEffect, val durationMs: Int) : OutputRequest
+    data class Trigger(val isRight: Boolean, val effect: TriggerEffect, val durationMs: Int) :
+        OutputRequest
     data class AudioTone(val route: AudioRoute, val freqHz: Int) : OutputRequest
 }
 

@@ -1,28 +1,34 @@
 package dev.dsprobe.app.route
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AndroidRouteCloseTest {
+    private val logged = ArrayList<String>()
+
     @Test
     fun neverClosesASessionWithNoRequest() {
         var closes = 0
-        assertNull(closeIfRequested(false) { closes += 1 })
+        assertTrue(closeLightsIfRequested(false, logged::add) { closes += 1 })
         assertEquals(0, closes)
     }
 
     @Test
     fun closesOnceAfterARequest() {
         var closes = 0
-        assertNull(closeIfRequested(true) { closes += 1 })
+        assertTrue(closeLightsIfRequested(true, logged::add) { closes += 1 })
         assertEquals(1, closes)
+        assertTrue(logged.isEmpty())
     }
 
     @Test
-    fun handsBackTheSystemFailureInsteadOfThrowing() {
+    fun logsTheSystemFailureInsteadOfThrowing() {
         val boom = NullPointerException("system")
-        assertSame(boom, closeIfRequested(true) { throw boom })
+        val closed = closeLightsIfRequested(true, logged::add) { throw boom }
+        assertFalse(closed)
+        assertEquals(1, logged.size)
+        assertTrue(logged.single(), logged.single().contains("system"))
     }
 }

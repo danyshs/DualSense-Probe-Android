@@ -28,7 +28,15 @@ class DebugHubTest {
         val feed = EventFeed()
         val hub = DebugHub(feed)
         hub.open()
-        feed.publish(FeedEvent(5_000_000L, Route.ANDROID, null, traceLine("in.button.cross", Route.ANDROID, "x"), "in.button.cross"))
+        feed.publish(
+            FeedEvent(
+                5_000_000L,
+                Route.ANDROID,
+                null,
+                traceLine("in.button.cross", Route.ANDROID, "x"),
+                "in.button.cross",
+            ),
+        )
         hub.pump(null)
         assertEquals(1, hub.trace.rows.size)
         assertEquals(emptyList<FeedEvent>(), feed.drain())

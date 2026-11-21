@@ -19,18 +19,28 @@ import dev.dsprobe.app.route.MotorLevels
 import dev.dsprobe.app.ui.theme.ChartColors
 import dev.dsprobe.pad.Limits
 
-private fun DrawScope.motorLine(history: List<MotorLevels>, color: Color, pick: (MotorLevels) -> Int) {
+private fun DrawScope.motorLine(
+    history: List<MotorLevels>,
+    color: Color,
+    pick: (MotorLevels) -> Int,
+) {
     if (history.size < 2) return
     val step = size.width / (AppLimits.RUMBLE_TRACE_SAMPLES_MAX - 1)
     var prev: Offset? = null
     for ((i, level) in history.withIndex()) {
-        val point = Offset(i * step, size.height - pick(level).toFloat() / Limits.MOTOR_STRENGTH_MAX * size.height)
+        val point = Offset(
+            i * step,
+            size.height - pick(level).toFloat() / Limits.MOTOR_STRENGTH_MAX * size.height,
+        )
         prev?.let { drawLine(color, it, point, strokeWidth = 3f) }
         prev = point
     }
 }
 
-/** The left and right values the route reports sending, newest at the right; 0 at the bottom, 255 at the top. */
+/**
+ * The left and right values the route reports sending, newest at the right; 0 at the bottom, 255 at
+ * the top.
+ */
 @Composable
 fun RumbleTraces(history: List<MotorLevels>, modifier: Modifier = Modifier) {
     val c = drawColors()
@@ -41,6 +51,11 @@ fun RumbleTraces(history: List<MotorLevels>, modifier: Modifier = Modifier) {
             motorLine(history, ChartColors.AxisX) { it.left }
             motorLine(history, ChartColors.AxisY) { it.right }
         }
-        Text(stringResource(R.string.rumble_trace_key), color = c.textDim, maxLines = 1, softWrap = false)
+        Text(
+            stringResource(R.string.rumble_trace_key),
+            color = c.textDim,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }

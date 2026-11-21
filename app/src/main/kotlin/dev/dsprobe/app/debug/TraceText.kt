@@ -10,7 +10,10 @@ const val BT_ADDRESS_MASK = "xx:xx:xx:xx:xx:xx"
 private const val CONTROL_COLUMN_CHARS = 26
 private const val ROUTE_COLUMN_CHARS = 7
 
-/** Strips anything shaped like a Bluetooth address. Runs over every line the screen shows and the log writes. */
+/**
+ * Strips anything shaped like a Bluetooth address. Runs over every line the screen shows and the
+ * log writes.
+ */
 fun scrubAddresses(text: String): String = BT_ADDRESS.replace(text, BT_ADDRESS_MASK)
 
 fun routeTag(route: Route): String = when (route) {
@@ -21,12 +24,18 @@ fun routeTag(route: Route): String = when (route) {
 /** One finished trace line: the control, the route, then what was touched. One line, scrubbed. */
 fun traceLine(control: String, route: Route, detail: String): String {
     require(control.isNotEmpty() && '\n' !in detail) { "a trace line is one line with a control" }
-    return scrubAddresses(control.padEnd(CONTROL_COLUMN_CHARS) + " " + routeTag(route).padEnd(ROUTE_COLUMN_CHARS) + " " + detail)
+    return scrubAddresses(
+        control.padEnd(CONTROL_COLUMN_CHARS) + " " + routeTag(route).padEnd(ROUTE_COLUMN_CHARS) +
+            " " +
+            detail,
+    )
 }
 
 /**
- * One row of the trace: [control] is the ID the checklist matches by prefix, [text] the one-line form the log keeps.
- * [headline] and [location] are the two lines the screen shows; empty means "derive them from [text]".
+ * One row of the trace: [control] is the ID the checklist matches by prefix, [text] the one-line
+ * form the log keeps.
+ * [headline] and [location] are the two lines the screen shows; empty means "derive them from
+ * [text]".
  */
 data class TraceRow(
     val timeMs: Long,
@@ -47,7 +56,10 @@ data class RowLines(val headline: String, val location: String) {
 fun controlLabel(control: String): String =
     control.substringAfterLast('.').replace('_', ' ').replaceFirstChar { it.uppercase() }
 
-/** The two display lines of [row], scrubbed. A row built without them falls back to its control and the detail part of its text. */
+/**
+ * The two display lines of [row], scrubbed. A row built without them falls back to its control and
+ * the detail part of its text.
+ */
 fun rowLines(row: TraceRow): RowLines {
     val marker = " " + routeTag(row.route).padEnd(ROUTE_COLUMN_CHARS) + " "
     val headline = row.headline.ifEmpty { row.control }
@@ -55,7 +67,9 @@ fun rowLines(row: TraceRow): RowLines {
     return RowLines(scrubAddresses(headline), scrubAddresses(location))
 }
 
-/** True for the controls that would flood the list: sticks, triggers, motion and touch positions. */
+/**
+ * True for the controls that would flood the list: sticks, triggers, motion and touch positions.
+ */
 fun isAxisControl(control: String): Boolean = when {
     control.startsWith("in.stick.") || control.startsWith("in.trigger.") -> true
     control.startsWith("in.gyro") || control.startsWith("in.accel") -> true

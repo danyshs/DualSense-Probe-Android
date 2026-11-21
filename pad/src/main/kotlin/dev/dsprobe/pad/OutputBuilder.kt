@@ -1,22 +1,16 @@
 package dev.dsprobe.pad
 
-/** One group of bytes with its own valid flag; a report names the groups it applies. */
-enum class OutputField {
-    RUMBLE, // the mode in OutputState picks which valid flags go up
-    RUMBLE_BOTH_MODES, // flags of both modes, for the all-off report (P45)
-    RIGHT_TRIGGER,
-    LEFT_TRIGGER,
-    LIGHTBAR,
-    PLAYER_LEDS,
-    MUTE_LED,
-    AUDIO_ROUTE, // route bytes and the volume that route uses; NONE sends nothing
-    MIC_VOLUME,
-}
-
-/** What the all-off report applies (P45): rumble in both modes, triggers, lightbar, player LEDs, mute LED. */
+/**
+ * What the all-off report applies (P45): rumble in both modes, triggers, lightbar, player LEDs,
+ * mute LED.
+ */
 val RELEASE_FIELDS: Set<OutputField> = setOf(
-    OutputField.RUMBLE_BOTH_MODES, OutputField.RIGHT_TRIGGER, OutputField.LEFT_TRIGGER,
-    OutputField.LIGHTBAR, OutputField.PLAYER_LEDS, OutputField.MUTE_LED,
+    OutputField.RUMBLE_BOTH_MODES,
+    OutputField.RIGHT_TRIGGER,
+    OutputField.LEFT_TRIGGER,
+    OutputField.LIGHTBAR,
+    OutputField.PLAYER_LEDS,
+    OutputField.MUTE_LED,
 )
 
 private const val REPORT_ID_OUTPUT = 0x02
@@ -93,6 +87,7 @@ private fun putTrigger(out: ByteArray, effect: TriggerEffect, offset: Int, flag0
 private fun putAudioRoute(out: ByteArray, s: OutputState) {
     when (s.audioRoute) {
         AudioRoute.NONE -> return
+
         AudioRoute.SPEAKER -> {
             out.put(SPEAKER_VOLUME, s.speakerVolume)
             out[AUDIO_PATH] = (PATH_SPEAKER shl PATH_SHIFT).toByte()
@@ -100,6 +95,7 @@ private fun putAudioRoute(out: ByteArray, s: OutputState) {
             out.setBits(FLAG0, F0_AUDIO_PATH or F0_SPEAKER_VOLUME)
             out.setBits(FLAG1, F1_SPEAKER_PREAMP)
         }
+
         AudioRoute.HEADPHONES -> {
             out.put(HEADPHONE_VOLUME, s.headphoneVolume)
             out[AUDIO_PATH] = (PATH_HEADPHONES shl PATH_SHIFT).toByte()
@@ -119,24 +115,32 @@ private fun putMic(out: ByteArray, s: OutputState) {
 private fun putField(out: ByteArray, s: OutputState, field: OutputField) {
     when (field) {
         OutputField.RUMBLE -> putRumble(out, s, bothModes = false)
+
         OutputField.RUMBLE_BOTH_MODES -> putRumble(out, s, bothModes = true)
+
         OutputField.RIGHT_TRIGGER -> putTrigger(out, s.r2Effect, RIGHT_TRIGGER, F0_RIGHT_TRIGGER)
+
         OutputField.LEFT_TRIGGER -> putTrigger(out, s.l2Effect, LEFT_TRIGGER, F0_LEFT_TRIGGER)
+
         OutputField.LIGHTBAR -> {
             out.put(LIGHTBAR, s.lightbar.r)
             out.put(LIGHTBAR + 1, s.lightbar.g)
             out.put(LIGHTBAR + 2, s.lightbar.b)
             out.setBits(FLAG1, F1_LIGHTBAR)
         }
+
         OutputField.PLAYER_LEDS -> {
             out[PLAYER_LEDS] = s.playerLedMask.toByte()
             out.setBits(FLAG1, F1_PLAYER_LEDS)
         }
+
         OutputField.MUTE_LED -> {
             out[MUTE_LED] = s.muteLed.ordinal.toByte() // OFF 0, ON 1, PULSE 2 (P37)
             out.setBits(FLAG1, F1_MUTE_LED)
         }
+
         OutputField.AUDIO_ROUTE -> putAudioRoute(out, s)
+
         OutputField.MIC_VOLUME -> putMic(out, s)
     }
 }

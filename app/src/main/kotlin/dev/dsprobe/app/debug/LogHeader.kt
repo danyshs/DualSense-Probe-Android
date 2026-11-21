@@ -19,7 +19,12 @@ private const val KERNEL_CHARS_MAX = 300
  * The pad's lines of the header. Firmware and hardware come from the Direct USB feature read only;
  * on any other transport they are "unknown". No serial number, no Bluetooth address.
  */
-fun padHeaderFields(productId: Int?, transport: Transport?, alsoPairedBluetooth: Boolean, firmware: FirmwareInfo?): List<Pair<String, String>> {
+fun padHeaderFields(
+    productId: Int?,
+    transport: Transport?,
+    alsoPairedBluetooth: Boolean,
+    firmware: FirmwareInfo?,
+): List<Pair<String, String>> {
     val name = when (productId) {
         PRODUCT_DUALSENSE -> "DualSense"
         PRODUCT_DUALSENSE_EDGE -> "DualSense Edge"
@@ -30,14 +35,20 @@ fun padHeaderFields(productId: Int?, transport: Transport?, alsoPairedBluetooth:
         "also_paired_over_bluetooth" to alsoPairedBluetooth.toString(),
         "pad_vendor" to "0x%04x".format(VENDOR_SONY),
         "pad_product" to (productId?.let { "0x%04x ($name)".format(it) } ?: UNKNOWN),
-        "pad_firmware_update_version" to (firmware?.let { "0x%04x".format(it.updateVersion.toInt()) } ?: UNKNOWN),
-        "pad_firmware_version" to (firmware?.let { "0x%08x".format(it.firmware.toLong()) } ?: UNKNOWN),
-        "pad_hardware_version" to (firmware?.let { "0x%08x".format(it.hardware.toLong()) } ?: UNKNOWN),
+        "pad_firmware_update_version" to
+            (firmware?.let { "0x%04x".format(it.updateVersion.toInt()) } ?: UNKNOWN),
+        "pad_firmware_version" to
+            (firmware?.let { "0x%08x".format(it.firmware.toLong()) } ?: UNKNOWN),
+        "pad_hardware_version" to
+            (firmware?.let { "0x%08x".format(it.hardware.toLong()) } ?: UNKNOWN),
         "pad_firmware_build_date" to (firmware?.buildDate ?: UNKNOWN),
     )
 }
 
-/** SHA-256 of a file as lowercase hex, read in fixed blocks; the block count is bounded by the file's size. */
+/**
+ * SHA-256 of a file as lowercase hex, read in fixed blocks; the block count is bounded by the
+ * file's size.
+ */
 fun sha256Hex(file: File): String {
     val digest = MessageDigest.getInstance("SHA-256")
     val buffer = ByteArray(AppLimits.APK_HASH_BUFFER_BYTES)
@@ -51,17 +62,18 @@ fun sha256Hex(file: File): String {
             digest.update(buffer, 0, n)
         }
     }
-    return digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
+    return digest.digest().joinToString("") { "%02x".format(it.toUByte().toInt()) }
 }
 
-private fun kernelVersion(): String =
-    try {
-        File("/proc/version").readText().trim().take(KERNEL_CHARS_MAX)
-    } catch (e: java.io.IOException) {
-        "unreadable: ${e.javaClass.simpleName}"
-    }
+private fun kernelVersion(): String = try {
+    File("/proc/version").readText().trim().take(KERNEL_CHARS_MAX)
+} catch (e: java.io.IOException) {
+    "unreadable: ${e.javaClass.simpleName}"
+}
 
-/** The app, phone and Android lines: commit, APK hash, build fingerprint, kernel, security patch. */
+/**
+ * The app, phone and Android lines: commit, APK hash, build fingerprint, kernel, security patch.
+ */
 fun phoneHeaderFields(context: Context): List<Pair<String, String>> = listOf(
     "app_version" to BuildConfig.VERSION_NAME,
     "app_version_code" to BuildConfig.VERSION_CODE.toString(),

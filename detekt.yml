@@ -1,0 +1,46 @@
+# Only what differs from detekt's defaults; every other rule runs as shipped. Each change
+# says which rule of the project's style it follows.
+build:
+  maxIssues: 0
+
+config:
+  warningsAsErrors: true
+
+style:
+  MaxLineLength:
+    maxLineLength: 100 # the same limit ktlint holds (.editorconfig)
+  MagicNumber:
+    # a number given a name in a val or a named table is the fix this rule asks for
+    ignorePropertyDeclaration: true
+  ReturnCount:
+    # early-out guards at the top of a function are the house style
+    excludeGuardClauses: true
+    # a resource opened in stages returns at each stage that can fail; past 4 a function is
+    # doing too much and gets split
+    max: 4
+
+complexity:
+  CyclomaticComplexMethod:
+    # a when that maps each case to one value is a lookup table, not branching logic
+    ignoreSimpleWhenEntries: true
+  LongMethod:
+    threshold: 70 # the style's function limit
+  LongParameterList:
+    # a record type's fields are the grouping this rule asks functions to use
+    constructorThreshold: 10
+    # a parameter with a default is passed by name, so it can't be swapped by mistake
+    ignoreDefaultParameters: true
+  TooManyFunctions:
+    # functions are already bounded by length; splitting a file by count adds classes the
+    # code doesn't need
+    active: false
+
+empty-blocks:
+  EmptyFunctionBlock:
+    # an interface override with nothing to do (TestListener in the build scripts) has to exist
+    ignoreOverridden: true
+
+naming:
+  FunctionNaming:
+    # Compose UI functions are nouns in PascalCase by Compose's own convention
+    ignoreAnnotated: ['Composable']

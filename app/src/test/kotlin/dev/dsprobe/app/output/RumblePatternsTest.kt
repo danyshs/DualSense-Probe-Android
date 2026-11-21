@@ -5,15 +5,26 @@ import dev.dsprobe.app.route.RumbleStep
 import dev.dsprobe.app.route.totalDurationMs
 import dev.dsprobe.pad.Limits
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private val DURATIONS_MS = listOf(1_000, 2_500, 5_000)
-private val RATES_HZ = listOf(AppLimits.RUMBLE_PULSE_RATE_HZ_MIN, AppLimits.RUMBLE_PULSE_RATE_HZ_DEFAULT, AppLimits.RUMBLE_PULSE_RATE_HZ_MAX)
+private val RATES_HZ =
+    listOf(
+        AppLimits.RUMBLE_PULSE_RATE_HZ_MIN,
+        AppLimits.RUMBLE_PULSE_RATE_HZ_DEFAULT,
+        AppLimits.RUMBLE_PULSE_RATE_HZ_MAX,
+    )
 
 class RumblePatternsTest {
-    private fun build(id: PatternId, left: Int = 255, right: Int = 255, ms: Int = 5_000, hz: Int = 4) = buildPattern(id, left, right, ms, hz)
+    private fun build(
+        id: PatternId,
+        left: Int = 255,
+        right: Int = 255,
+        ms: Int = 5_000,
+        hz: Int = 4,
+    ) = buildPattern(id, left, right, ms, hz)
 
     @Test fun everyPatternHasATableEntry() {
         assertEquals(PatternId.entries.toSet(), PATTERNS.keys)
@@ -22,23 +33,38 @@ class RumblePatternsTest {
 
     @Test fun theTableValuesAreAllWithin0To255() {
         for ((id, def) in PATTERNS) {
-            for (s in def.cycle) assertTrue("$id $s", s.left in 0..255 && s.right in 0..255 && s.durationMs > 0)
+            for (s in def.cycle) {
+                assertTrue(
+                    "$id $s",
+                    s.left in 0..255 && s.right in 0..255 && s.durationMs > 0,
+                )
+            }
         }
     }
 
     @Test fun everyBuiltPatternStaysInsideTheValueRangeAndTheRumbleCap() {
-        for (id in PatternId.entries) for (ms in DURATIONS_MS) for (hz in RATES_HZ) {
-            val steps = build(id, ms = ms, hz = hz)
-            assertTrue("$id $ms $hz", steps.isNotEmpty() && steps.size <= AppLimits.RUMBLE_STEPS_MAX)
-            for (s in steps) assertTrue("$id $s", s.left in 0..255 && s.right in 0..255 && s.durationMs >= 1)
-            val total = totalDurationMs(steps)
-            assertTrue("$id total $total", total in 1..minOf(ms, Limits.RUMBLE_DURATION_MS_MAX))
+        for (id in PatternId.entries) {
+            for (ms in DURATIONS_MS) {
+                for (hz in RATES_HZ) assertPatternInRange(id, ms, hz)
+            }
         }
     }
 
+    private fun assertPatternInRange(id: PatternId, ms: Int, hz: Int) {
+        val steps = build(id, ms = ms, hz = hz)
+        assertTrue("$id $ms $hz", steps.isNotEmpty() && steps.size <= AppLimits.RUMBLE_STEPS_MAX)
+        for (s in steps) {
+            assertTrue("$id $s", s.left in 0..255 && s.right in 0..255 && s.durationMs >= 1)
+        }
+        val total = totalDurationMs(steps)
+        assertTrue("$id total $total", total in 1..minOf(ms, Limits.RUMBLE_DURATION_MS_MAX))
+    }
+
     @Test fun everyPatternExceptImpactFillsItsWholeDuration() {
-        for (id in PatternId.entries - PatternId.IMPACT) for (ms in DURATIONS_MS) {
-            assertEquals("$id $ms", ms, totalDurationMs(build(id, ms = ms)))
+        for (id in PatternId.entries - PatternId.IMPACT) {
+            for (ms in DURATIONS_MS) {
+                assertEquals("$id $ms", ms, totalDurationMs(build(id, ms = ms)))
+            }
         }
     }
 
@@ -53,7 +79,12 @@ class RumblePatternsTest {
             assertTrue(id.name, steps.all { it.left <= 100 && it.right <= 40 })
             assertTrue(id.name, steps.any { it.left > 0 || it.right > 0 })
         }
-        assertTrue(build(PatternId.CONSTANT, left = 0, right = 90).all { it.left == 0 && it.right == 90 })
+        assertTrue(
+            build(PatternId.CONSTANT, left = 0, right = 90).all {
+                it.left == 0 &&
+                    it.right == 90
+            },
+        )
     }
 
     @Test fun pulseRateSetsThePeriod() {

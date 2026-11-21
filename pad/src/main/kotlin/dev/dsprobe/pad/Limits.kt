@@ -1,6 +1,9 @@
 package dev.dsprobe.pad
 
-/** Report and protocol limits (FACTS P3, P17, P31-P39, P45). Units and counts in the names, qualifiers last. */
+/**
+ * Report and protocol limits (FACTS P3, P17, P31-P39, P45). Units and counts in the names,
+ * qualifiers last.
+ */
 object Limits {
     const val USB_INPUT_REPORT_BYTES = 64
     const val USB_OUTPUT_REPORT_BYTES = 63
@@ -14,7 +17,9 @@ object Limits {
     const val USB_HID_ENDPOINT_PACKET_BYTES = 64
 
     const val OUTPUT_INTERVAL_MS_MIN = 10
-    const val OUTPUT_RESEND_INTERVAL_MS = 500 // placeholder until a phone test shows whether the pad holds its output
+
+    // placeholder until a phone test shows whether the pad holds its output
+    const val OUTPUT_RESEND_INTERVAL_MS = 500
     const val RUMBLE_DURATION_MS_MAX = 5_000
     const val TRIGGER_EFFECT_DURATION_MS_MAX = 30_000
     const val AUDIO_TEST_DURATION_MS_MAX = 10_000

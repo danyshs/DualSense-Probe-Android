@@ -8,7 +8,8 @@ private const val NANOS_PER_MS = 1_000_000L
 
 /**
  * Turns the feed into the Route trace's rows, newest first and bounded. A bare raw report is a
- * Direct USB input and is decoded against INPUT_MAP; every other event arrives described. Axes get at
+ * Direct USB input and is decoded against INPUT_MAP; every other event arrives described. Axes get
+ * at
  * most one row per interval. Main thread only.
  */
 class TraceModel {
@@ -39,7 +40,15 @@ class TraceModel {
             if (event.control == null && raw != null) {
                 usbInput(raw, timeMs, fresh)
             } else if (event.described != null && event.control != null) {
-                val row = TraceRow(timeMs, event.route, event.control, event.described, event.headline.orEmpty(), event.location.orEmpty())
+                val row =
+                    TraceRow(
+                        timeMs,
+                        event.route,
+                        event.control,
+                        event.described,
+                        event.headline.orEmpty(),
+                        event.location.orEmpty(),
+                    )
                 if (add(row)) fresh.add(row)
             }
         }
@@ -51,7 +60,10 @@ class TraceModel {
         val prev = previousReport
         previousReport = report
         // a report of the wrong shape was counted by the route; there is nothing to decode
-        if (prev == null || report.size != prev.size || report.size != Limits.USB_INPUT_REPORT_BYTES) return
+        val wrongShape = report.size != Limits.USB_INPUT_REPORT_BYTES
+        if (prev == null || report.size != prev.size || wrongShape) {
+            return
+        }
         for (row in usbInputRows(prev, report, timeMs)) if (add(row)) fresh.add(row)
     }
 

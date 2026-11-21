@@ -12,7 +12,10 @@ private const val API_LEVEL = 36
 private val QUIET_PROBE = ApiProbe(
     API_LEVEL,
     listOf(
-        ClassMethods("InputDevice", listOf("getName", "getLightsManager", "getBatteryState", "isEnabled", "hasKeys")),
+        ClassMethods(
+            "InputDevice",
+            listOf("getName", "getLightsManager", "getBatteryState", "isEnabled", "hasKeys"),
+        ),
         ClassMethods("VibratorManager", listOf("vibrate", "cancel", "getVibratorIds")),
     ),
 )
@@ -28,14 +31,46 @@ class CapabilitiesProbeTest {
     }
 
     @Test fun aWordMatchesWholeOrPluralNeverInsideAnotherWord() {
-        val probe = ApiProbe(API_LEVEL, listOf(ClassMethods("InputDevice", listOf("isEnabled", "getLeds", "getLightsManager", "setMuted", "hasBattery"))))
+        val probe =
+            ApiProbe(
+                API_LEVEL,
+                listOf(
+                    ClassMethods(
+                        "InputDevice",
+                        listOf(
+                            "isEnabled",
+                            "getLeds",
+                            "getLightsManager",
+                            "setMuted",
+                            "hasBattery",
+                        ),
+                    ),
+                ),
+            )
         val hits = probe.matches().map { it.method to it.keyword }
-        assertEquals(listOf("InputDevice.getLeds" to "led", "InputDevice.getLightsManager" to "light", "InputDevice.hasBattery" to "battery"), hits)
+        assertEquals(
+            listOf(
+                "InputDevice.getLeds" to "led",
+                "InputDevice.getLightsManager" to "light",
+                "InputDevice.hasBattery" to "battery",
+            ),
+            hits,
+        )
     }
 
     @Test fun withoutAMatchTheFeatureStaysLockedAndTheReasonCountsWhatWasProbed() {
         val a = withProbe(QUIET_PROBE)
-        for (f in listOf(Feature.ADAPTIVE_TRIGGERS, Feature.MUTE_LED, Feature.MUTE_BUTTON, Feature.HD_HAPTICS)) assertTrue("$f", f in lockedOf(a))
+        for (f in listOf(
+            Feature.ADAPTIVE_TRIGGERS,
+            Feature.MUTE_LED,
+            Feature.MUTE_BUTTON,
+            Feature.HD_HAPTICS,
+        )) {
+            assertTrue(
+                "$f",
+                f in lockedOf(a),
+            )
+        }
         val r = reductions(a).single { it.feature == Feature.ADAPTIVE_TRIGGERS }
         assertEquals(R.string.reason_android_offers_nothing_probed, r.reasonRes)
         assertEquals(listOf(QUIET_PROBE.methodCount, API_LEVEL), r.reasonArgs)
@@ -50,14 +85,31 @@ class CapabilitiesProbeTest {
     }
 
     @Test fun aMatchingMethodNameShowsMayOfferAndUnlocksOnlyThatFeature() {
-        val fake = ApiProbe(API_LEVEL, listOf(ClassMethods("InputDevice", listOf("getName", "setTriggerEffect"))))
+        val fake =
+            ApiProbe(
+                API_LEVEL,
+                listOf(ClassMethods("InputDevice", listOf("getName", "setTriggerEffect"))),
+            )
         val a = withProbe(fake)
-        assertEquals(listOf(MayOffer(Feature.ADAPTIVE_TRIGGERS, "InputDevice.setTriggerEffect")), mayOffer(a))
+        assertEquals(
+            listOf(MayOffer(Feature.ADAPTIVE_TRIGGERS, "InputDevice.setTriggerEffect")),
+            mayOffer(a),
+        )
         assertFalse(Feature.ADAPTIVE_TRIGGERS in lockedOf(a))
         assertTrue(Feature.MUTE_LED in lockedOf(a))
         val rows = answerRows(a)
-        assertTrue(rows.any { it.labelRes == R.string.answer_may_offer && it.value == "ADAPTIVE_TRIGGERS InputDevice.setTriggerEffect" })
-        assertTrue(rows.any { it.labelRes == R.string.answer_probe_match && it.value.startsWith("InputDevice.setTriggerEffect (trigger)") })
+        assertTrue(
+            rows.any {
+                it.labelRes == R.string.answer_may_offer &&
+                    it.value == "ADAPTIVE_TRIGGERS InputDevice.setTriggerEffect"
+            },
+        )
+        assertTrue(
+            rows.any {
+                it.labelRes == R.string.answer_probe_match &&
+                    it.value.startsWith("InputDevice.setTriggerEffect (trigger)")
+            },
+        )
     }
 
     @Test fun eachProbeWordUnlocksItsOwnFeatures() {
@@ -74,7 +126,13 @@ class CapabilitiesProbeTest {
 
     @Test fun withNoProbeAnswerNothingIsMayOffer() {
         assertEquals(emptyList<MayOffer>(), mayOffer(withProbe(null)))
-        assertEquals("no answer", answerRows(withProbe(null)).single { it.labelRes == R.string.answer_probe }.value)
+        assertEquals(
+            "no answer",
+            answerRows(withProbe(null)).single {
+                it.labelRes ==
+                    R.string.answer_probe
+            }.value,
+        )
     }
 
     @Test fun aKeyEventWhileMuteIsWatchedUnlocksTheMuteButton() {
@@ -88,19 +146,40 @@ class CapabilitiesProbeTest {
     @Test fun aKeyEventOutsideTheMutePromptOrOfAMappedButtonUnlocksNothing() {
         val base = usbPixelAnswers()
         assertSame(base, learnMuteKey(base, muteWatched = false, keyCode = 91))
-        assertSame(base, learnMuteKey(base, muteWatched = true, keyCode = android.view.KeyEvent.KEYCODE_BUTTON_A))
+        assertSame(
+            base,
+            learnMuteKey(
+                base,
+                muteWatched = true,
+                keyCode = android.view.KeyEvent.KEYCODE_BUTTON_A,
+            ),
+        )
         val learned = learnMuteKey(base, true, 91)
         assertSame(learned, learnMuteKey(learned, true, 92))
         assertNull(base.muteKeyCode)
     }
 
     @Test fun theLogLinesCarryTheProbeAndSayNothingWasCalled() {
-        val fake = ApiProbe(API_LEVEL, listOf(ClassMethods("InputDevice", listOf("setTriggerEffect"))))
+        val fake =
+            ApiProbe(API_LEVEL, listOf(ClassMethods("InputDevice", listOf("setTriggerEffect"))))
         val lines = answerLines(withProbe(fake))
         assertTrue(lines.contains("android.probe api_level=36 methods=1"))
-        assertTrue(lines.contains("android.probe.match method=InputDevice.setTriggerEffect keyword=trigger called=never"))
-        assertTrue(lines.contains("android.may_offer feature=ADAPTIVE_TRIGGERS method=InputDevice.setTriggerEffect"))
-        assertTrue(lines.any { it.startsWith("android.battery present=true capacity=-0.01 status=1") })
+        assertTrue(
+            lines.contains(
+                "android.probe.match method=InputDevice.setTriggerEffect keyword=trigger " +
+                    "called=never",
+            ),
+        )
+        assertTrue(
+            lines.contains(
+                "android.may_offer feature=ADAPTIVE_TRIGGERS method=InputDevice.setTriggerEffect",
+            ),
+        )
+        assertTrue(
+            lines.any {
+                it.startsWith("android.battery present=true capacity=-0.01 status=1")
+            },
+        )
     }
 
     @Test fun theSheetListsEveryPresentKeyAndTheMappedOnesButNotTheRest() {
@@ -109,7 +188,19 @@ class CapabilitiesProbeTest {
             KeyAnswer(97, "KEYCODE_BUTTON_B", dev.dsprobe.pad.Button.CIRCLE, present = false),
             KeyAnswer(120, "KEYCODE_SYSRQ", null, present = true),
         )
-        val rows = answerRows(usbPixelAnswers().copy(keys = keys)).filter { it.labelRes == R.string.answer_key }
-        assertEquals(listOf("KEYCODE_BUTTON_A (96) true", "KEYCODE_BUTTON_B (97) false", "KEYCODE_SYSRQ (120) true"), rows.map { it.value })
+        val rows = answerRows(usbPixelAnswers().copy(keys = keys)).filter {
+            it.labelRes ==
+                R.string.answer_key
+        }
+        assertEquals(
+            listOf(
+                "KEYCODE_BUTTON_A (96) true",
+                "KEYCODE_BUTTON_B (97) false",
+                "KEYCODE_SYSRQ (120) true",
+            ),
+            rows.map {
+                it.value
+            },
+        )
     }
 }

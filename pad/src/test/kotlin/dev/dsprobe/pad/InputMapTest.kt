@@ -11,8 +11,14 @@ class InputMapTest {
         val out = HashSet<Pair<Int, Int>>()
         val bytes = (src.widthBits + 7) / 8
         for (b in 0 until bytes) {
-            val mask = src.bitMask ?: if (src.widthBits - b * 8 >= 8) 0xff else (1 shl (src.widthBits - b * 8)) - 1
-            for (bit in 0 until 8) if (mask and (1 shl bit) != 0) out.add(Pair(src.byteOffset + b, bit))
+            val mask =
+                src.bitMask
+                    ?: if (src.widthBits - b * 8 >= 8) 0xff else (1 shl (src.widthBits - b * 8)) - 1
+            for (bit in 0 until 8) {
+                if (mask and (1 shl bit) != 0) {
+                    out.add(Pair(src.byteOffset + b, bit))
+                }
+            }
         }
         return out
     }
@@ -41,7 +47,13 @@ class InputMapTest {
 
     @Test fun entriesNeverOverlap() {
         val seen = HashSet<Pair<Int, Int>>()
-        for (src in INPUT_MAP) for (bit in bitsOf(src)) assertTrue("${src.id} overlaps at ${bit}", seen.add(bit))
+        for (src in INPUT_MAP) {
+            for (bit in bitsOf(
+                src,
+            )) {
+                assertTrue("${src.id} overlaps at $bit", seen.add(bit))
+            }
+        }
     }
 
     @Test fun parserReadsExactlyTheBitsTheMapNames() {
@@ -55,7 +67,7 @@ class InputMapTest {
                 val r = base.copyOf()
                 r[byte] = (r[byte].toInt() xor (1 shl bit)).toByte()
                 val changed = parseUsbInput(r) != baseResult
-                assertEquals("byte ${byte} bit ${bit}", Pair(byte, bit) in claimed, changed)
+                assertEquals("byte $byte bit $bit", Pair(byte, bit) in claimed, changed)
                 flips++
             }
         }
@@ -68,8 +80,13 @@ class InputMapTest {
         for (src in INPUT_MAP.filter { it.id.startsWith("in.button.") }) {
             val button = Button.valueOf(src.id.removePrefix("in.button.").uppercase())
             val pressed = idle.copyOf()
-            pressed[src.byteOffset] = (pressed[src.byteOffset].toInt() or checkNotNull(src.bitMask)).toByte()
-            assertEquals(src.id, setOf(button), (parseUsbInput(pressed) as ParseResult.Ok).input.held)
+            pressed[src.byteOffset] =
+                (pressed[src.byteOffset].toInt() or checkNotNull(src.bitMask)).toByte()
+            assertEquals(
+                src.id,
+                setOf(button),
+                (parseUsbInput(pressed) as ParseResult.Ok).input.held,
+            )
             assertFalse(src.id, button in idleHeld)
         }
     }

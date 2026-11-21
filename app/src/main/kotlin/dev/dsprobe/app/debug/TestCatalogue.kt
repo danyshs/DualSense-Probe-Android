@@ -17,7 +17,9 @@ private const val TRIGGER_FORCE = 0xc0
 private const val TRIGGER_EFFECT_MS = 5_000
 private const val RUMBLE_STRENGTH = 200
 
-private fun title(raw: String): String = raw.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
+private fun title(raw: String): String = raw.lowercase().replace('_', ' ').replaceFirstChar {
+    it.uppercase()
+}
 
 private fun buttonFeature(b: Button): Feature = when (b) {
     Button.MUTE -> Feature.MUTE_BUTTON
@@ -39,19 +41,77 @@ private fun companionsOf(id: String): Set<InputId> = when {
     else -> emptySet()
 }
 
-private fun input(route: Route, id: String, promptRes: Int, arg: String, feature: Feature?): TestCase = TestCase(
+private fun input(
+    route: Route,
+    id: String,
+    promptRes: Int,
+    arg: String,
+    feature: Feature?,
+): TestCase = TestCase(
     id = id, route = route, kind = Kind.INPUT, promptRes = promptRes, promptArg = arg,
-    timeoutMs = AppLimits.INPUT_TEST_TIMEOUT_MS, check = Check.AwaitInput(InputId(id)), companions = companionsOf(id), feature = feature,
+    timeoutMs = AppLimits.INPUT_TEST_TIMEOUT_MS,
+    check = Check.AwaitInput(
+        InputId(id),
+    ),
+    companions = companionsOf(id), feature = feature,
 )
 
 private fun inputTests(route: Route): List<TestCase> {
     val out = ArrayList<TestCase>()
-    for (b in Button.entries) out.add(input(route, "in.button.${b.name.lowercase()}", R.string.prompt_press, title(b.name), buttonFeature(b)))
-    for (d in Dpad.entries.filter { it != Dpad.NONE }) out.add(input(route, "in.dpad.${d.name.lowercase()}", R.string.prompt_dpad, d.name, Feature.BUTTONS))
-    for (stick in listOf("left", "right")) {
-        for (axis in listOf("x", "y")) out.add(input(route, "in.stick.$stick.$axis", R.string.prompt_stick, "$stick stick ${axis.uppercase()}", Feature.STICKS))
+    for (b in Button.entries) {
+        out.add(
+            input(
+                route,
+                "in.button.${b.name.lowercase()}",
+                R.string.prompt_press,
+                title(b.name),
+                buttonFeature(b),
+            ),
+        )
     }
-    for (side in listOf("l2", "r2")) out.add(input(route, "in.trigger.$side", R.string.prompt_trigger, side.uppercase(), Feature.TRIGGERS_ANALOG))
+    for (d in Dpad.entries.filter {
+        it != Dpad.NONE
+    }) {
+        out.add(
+            input(
+                route,
+                "in.dpad.${d.name.lowercase()}",
+                R.string.prompt_dpad,
+                d.name,
+                Feature.BUTTONS,
+            ),
+        )
+    }
+    for (stick in listOf("left", "right")) {
+        for (axis in listOf(
+            "x",
+            "y",
+        )) {
+            out.add(
+                input(
+                    route,
+                    "in.stick.$stick.$axis",
+                    R.string.prompt_stick,
+                    "$stick stick ${axis.uppercase()}",
+                    Feature.STICKS,
+                ),
+            )
+        }
+    }
+    for (side in listOf(
+        "l2",
+        "r2",
+    )) {
+        out.add(
+            input(
+                route,
+                "in.trigger.$side",
+                R.string.prompt_trigger,
+                side.uppercase(),
+                Feature.TRIGGERS_ANALOG,
+            ),
+        )
+    }
     out.add(input(route, "in.touch.0", R.string.prompt_touch_one, "", Feature.TOUCHPAD_POINTER))
     out.add(input(route, "in.touch.1", R.string.prompt_touch_two, "", Feature.TOUCHPAD_TWO_FINGERS))
     out.add(input(route, "in.gyro", R.string.prompt_tilt, "gyroscope", Feature.MOTION_SENSORS))
@@ -59,46 +119,94 @@ private fun inputTests(route: Route): List<TestCase> {
     return out
 }
 
-private fun output(route: Route, id: String, what: String, request: OutputRequest, cleanup: OutputRequest?, feature: Feature?) = TestCase(
-    id = id, route = route, kind = Kind.OUTPUT, promptRes = R.string.prompt_watch, promptArg = what,
-    timeoutMs = AppLimits.CONFIRM_TAP_TIMEOUT_MS, check = Check.SendOutput(request, cleanup), feature = feature,
+private fun output(
+    route: Route,
+    id: String,
+    what: String,
+    feature: Feature,
+    send: Check.SendOutput,
+) = TestCase(
+    id = id,
+    route = route,
+    kind = Kind.OUTPUT,
+    promptRes = R.string.prompt_watch,
+    promptArg = what,
+    timeoutMs = AppLimits.CONFIRM_TAP_TIMEOUT_MS,
+    check = send,
+    feature = feature,
 )
 
 private fun rgb(r: Int, g: Int, b: Int) = Rgb(r.toUByte(), g.toUByte(), b.toUByte())
 
-private fun outputTests(route: Route): List<TestCase> {
+private val LIGHTBAR_PRIMARIES = listOf(
+    "red" to rgb(255, 0, 0),
+    "green" to rgb(0, 255, 0),
+    "blue" to rgb(0, 0, 255),
+)
+
+private fun outputTests(route: Route): List<TestCase> =
+    lightTests(route) + rumbleTests(route) + triggerTests(route)
+
+private fun lightTests(route: Route): List<TestCase> {
     val out = ArrayList<TestCase>()
     val off = OutputRequest.Lightbar(rgb(0, 0, 0))
-    for ((name, c) in listOf("red" to rgb(255, 0, 0), "green" to rgb(0, 255, 0), "blue" to rgb(0, 0, 255))) {
-        out.add(output(route, "out.lightbar.$name", "lightbar $name", OutputRequest.Lightbar(c), off, Feature.LIGHTBAR))
+    for ((name, c) in LIGHTBAR_PRIMARIES) {
+        val send = Check.SendOutput(OutputRequest.Lightbar(c), off)
+        out += output(route, "out.lightbar.$name", "lightbar $name", Feature.LIGHTBAR, send)
     }
     for (n in 1..AppLimits.PLAYER_LED_COUNT) {
-        val mask = 1 shl (n - 1)
-        out.add(output(route, "out.led.player.$n", "player LED $n", OutputRequest.PlayerLeds(mask), OutputRequest.PlayerLeds(0), Feature.PLAYER_LEDS))
+        val on = OutputRequest.PlayerLeds(1 shl (n - 1))
+        val send = Check.SendOutput(on, OutputRequest.PlayerLeds(0))
+        out += output(route, "out.led.player.$n", "player LED $n", Feature.PLAYER_LEDS, send)
     }
-    val level = RUMBLE_STRENGTH.toUByte()
-    val rumbles = listOf("left" to (level to 0.toUByte()), "right" to (0.toUByte() to level), "both" to (level to level))
-    for ((name, motors) in rumbles) {
-        val req = OutputRequest.Rumble(motors.first, motors.second, PROBE_PULSE_MS)
-        out.add(output(route, "out.rumble.$name", "$name rumble", req, OutputRequest.Rumble(0u, 0u, 1), Feature.RUMBLE))
-    }
-    out.add(output(route, "out.led.mute.on", "mute LED", OutputRequest.SetMuteLed(MuteLed.ON), OutputRequest.SetMuteLed(MuteLed.OFF), Feature.MUTE_LED))
-    for (isRight in listOf(true, false)) {
-        val side = if (isRight) "r2" else "l2"
-        val effect = TriggerEffect.resistance(TRIGGER_START.toUByte(), TRIGGER_FORCE.toUByte())
-        val req = OutputRequest.Trigger(isRight, effect, TRIGGER_EFFECT_MS)
-        out.add(output(route, "out.trigger.$side.resistance", "$side trigger resistance", req, OutputRequest.Trigger(isRight, TriggerEffect.OFF, 1), Feature.ADAPTIVE_TRIGGERS))
-    }
+    val muteOff = OutputRequest.SetMuteLed(MuteLed.OFF)
+    val mute = Check.SendOutput(OutputRequest.SetMuteLed(MuteLed.ON), muteOff)
+    out += output(route, "out.led.mute.on", "mute LED", Feature.MUTE_LED, mute)
     return out
 }
 
+private fun rumbleTests(route: Route): List<TestCase> {
+    val level = RUMBLE_STRENGTH.toUByte()
+    val rumbles = listOf(
+        "left" to (level to 0.toUByte()),
+        "right" to (0.toUByte() to level),
+        "both" to (level to level),
+    )
+    val stop = OutputRequest.Rumble(0u, 0u, 1)
+    return rumbles.map { (name, motors) ->
+        val req = OutputRequest.Rumble(motors.first, motors.second, PROBE_PULSE_MS)
+        val send = Check.SendOutput(req, stop)
+        output(route, "out.rumble.$name", "$name rumble", Feature.RUMBLE, send)
+    }
+}
+
+private fun triggerTests(route: Route): List<TestCase> = listOf(true, false).map { isRight ->
+    val side = if (isRight) "r2" else "l2"
+    val effect = TriggerEffect.resistance(TRIGGER_START.toUByte(), TRIGGER_FORCE.toUByte())
+    val req = OutputRequest.Trigger(isRight, effect, TRIGGER_EFFECT_MS)
+    val off = OutputRequest.Trigger(isRight, TriggerEffect.OFF, 1)
+    output(
+        route,
+        "out.trigger.$side.resistance",
+        "$side trigger resistance",
+        Feature.ADAPTIVE_TRIGGERS,
+        Check.SendOutput(req, off),
+    )
+}
+
 private fun routeStep(id: String, route: Route, promptRes: Int) = TestCase(
-    id = id, route = route, kind = Kind.ROUTE, promptRes = promptRes, promptArg = "",
-    timeoutMs = AppLimits.ROUTE_SWITCH_TIMEOUT_MS, check = Check.AwaitRoute(route),
+    id = id,
+    route = route,
+    kind = Kind.ROUTE,
+    promptRes = promptRes,
+    promptArg = "",
+    timeoutMs = AppLimits.ROUTE_SWITCH_TIMEOUT_MS,
+    check = Check.AwaitRoute(route),
 )
 
 /**
- * The fixed, ordered list: every Android mode test, the switch to Direct USB, every Direct USB test,
+ * The fixed, ordered list: every Android mode test, the switch to Direct USB, every Direct USB
+ * test,
  * then the release and a check that Android's devices came back. Input tests first within a route.
  */
 fun buildCatalogue(): List<TestCase> {
@@ -106,6 +214,10 @@ fun buildCatalogue(): List<TestCase> {
         routeStep("route.direct_usb", Route.DIRECT_USB, R.string.prompt_route_usb) +
         inputTests(Route.DIRECT_USB) + outputTests(Route.DIRECT_USB) +
         routeStep("route.android_back", Route.ANDROID, R.string.prompt_route_android)
-    check(list.map { it.route to it.id }.toSet().size == list.size) { "a test appears twice for one route" }
+    check(
+        list.map {
+            it.route to it.id
+        }.toSet().size == list.size,
+    ) { "a test appears twice for one route" }
     return list
 }

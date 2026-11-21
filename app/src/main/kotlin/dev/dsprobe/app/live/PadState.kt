@@ -7,7 +7,10 @@ enum class MotionUnit { RAW_COUNTS, SI }
 
 data class Motion(val x: Float, val y: Float, val z: Float, val unit: MotionUnit)
 
-/** [x], [y] in 0..1 across the touchpad rectangle; [isPointer] when it is Android's mouse pointer scaled to the screen. */
+/**
+ * [x], [y] in 0..1 across the touchpad rectangle; [isPointer] when it is Android's mouse pointer
+ * scaled to the screen.
+ */
 data class TouchPoint(val id: Int, val x: Float, val y: Float, val isPointer: Boolean) {
     init {
         require(x in 0f..1f && y in 0f..1f) { "touch point outside 0..1: $x, $y" }
@@ -16,9 +19,14 @@ data class TouchPoint(val id: Int, val x: Float, val y: Float, val isPointer: Bo
 
 sealed interface Battery {
     data class Percent(val percent: Int) : Battery
+
     /** Level and charging nibbles as the pad sends them; their meaning is untested (P18). */
     data class RawNibble(val levelNibble: Int, val chargingNibble: Int) : Battery
-    /** Android's own answer, shown as given when it isn't a usable percentage (measured on USB: capacity -0.01, status unknown). */
+
+    /**
+     * Android's own answer, shown as given when it isn't a usable percentage (measured on USB:
+     * capacity -0.01, status unknown).
+     */
     data class AndroidRaw(val capacity: Float, val status: Int) : Battery
 }
 
@@ -43,7 +51,9 @@ data class PadState(
     val sequence: Int?,
 ) {
     init {
-        require(leftX in -1f..1f && leftY in -1f..1f && rightX in -1f..1f && rightY in -1f..1f) { "stick outside -1..1" }
+        require(leftX in -1f..1f && leftY in -1f..1f && rightX in -1f..1f && rightY in -1f..1f) {
+            "stick outside -1..1"
+        }
         require(l2 in 0f..1f && r2 in 0f..1f) { "trigger outside 0..1" }
     }
 

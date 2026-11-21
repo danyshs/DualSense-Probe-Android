@@ -54,7 +54,8 @@ class DebugRunner(
     private val sent = ArrayList<String>()
     private var directUsbFailed = false
 
-    // Compose state: the screen reads these, so any write redraws it with no one needing to remember a counter
+    // Compose state: the screen reads these, so any write redraws it with no one needing to
+    // remember a counter
     var phase by mutableStateOf(Phase.IDLE)
         private set
 
@@ -62,19 +63,31 @@ class DebugRunner(
     var revision by mutableLongStateOf(0L)
         private set
 
-    /** A line about a test that settled without a prompt ("route not live"), shown briefly; null when none. */
+    /**
+     * A line about a test that settled without a prompt ("route not live"), shown briefly; null
+     * when none.
+     */
     var notice by mutableStateOf<String?>(null)
         private set
 
     private var noticeUntilMs = 0L
 
-    val results: List<TestResult> get() = done.toList().also { check(revision >= 0L) { "revision" } }
+    val results: List<TestResult> get() = done.toList().also {
+        check(revision >= 0L) { "revision" }
+    }
 
-    val current: TestCase? get() = if (phase == Phase.IDLE || phase == Phase.DONE) null else tests.getOrNull(index)
+    val current: TestCase? get() = if (phase == Phase.IDLE || phase == Phase.DONE) {
+        null
+    } else {
+        tests.getOrNull(index)
+    }
 
     val testCount: Int get() = tests.size
 
-    /** Every test starts as NOT_PROVEN; a run walks them. A second start while running changes nothing. */
+    /**
+     * Every test starts as NOT_PROVEN; a run walks them. A second start while running changes
+     * nothing.
+     */
     fun start() {
         if (phase != Phase.IDLE && phase != Phase.DONE) return
         done.clear()
@@ -102,7 +115,13 @@ class DebugRunner(
         if (phase != Phase.WAITING_CONFIRM) return
         when (answer) {
             Confirm.YES -> finishTest(test, Outcome.PASSED, "API ok, developer saw or felt it")
-            Confirm.NO -> finishTest(test, Outcome.ACCEPTED_NO_EFFECT, "API ok, developer saw or felt nothing")
+
+            Confirm.NO -> finishTest(
+                test,
+                Outcome.ACCEPTED_NO_EFFECT,
+                "API ok, developer saw or felt nothing",
+            )
+
             Confirm.CANT_TELL -> finishTest(test, Outcome.CANT_TELL, "developer could not tell")
         }
     }
@@ -153,8 +172,13 @@ class DebugRunner(
         }
         when (phase) {
             Phase.WAITING_INPUT -> tickInput(test, now)
-            Phase.WAITING_CONFIRM -> if (now >= deadlineMs) finishTest(test, Outcome.CANT_TELL, "no tap within the wait")
+
+            Phase.WAITING_CONFIRM -> if (now >= deadlineMs) {
+                finishTest(test, Outcome.CANT_TELL, "no tap within the wait")
+            }
+
             Phase.WAITING_ROUTE -> tickRoute(test, now)
+
             Phase.IDLE, Phase.DONE -> Unit
         }
     }
@@ -162,13 +186,26 @@ class DebugRunner(
     private fun tickInput(test: TestCase, now: Long) {
         val muteKey = env.muteKeyCode()
         if (test.feature == Feature.MUTE_BUTTON && test.route == Route.ANDROID && muteKey != null) {
-            finishTest(test, Outcome.PASSED, "Android sent key code $muteKey while Mute was pressed: Mute is offered")
+            finishTest(
+                test,
+                Outcome.PASSED,
+                "Android sent key code $muteKey while Mute was pressed: Mute is offered",
+            )
             return
         }
         if (now < deadlineMs) return
         // a feature Android lists nothing for is not "not seen": nothing was offered to see
-        val offered = test.route != Route.ANDROID || test.feature == null || !env.isLocked(test.feature)
-        if (offered) finishTest(test, Outcome.NOT_SEEN, "no matching event in time") else finishTest(test, Outcome.NOT_OFFERED, "Android offers no API for this")
+        val offered =
+            test.route != Route.ANDROID || test.feature == null || !env.isLocked(test.feature)
+        if (offered) {
+            finishTest(
+                test,
+                Outcome.NOT_SEEN,
+                "no matching event in time",
+            )
+        } else {
+            finishTest(test, Outcome.NOT_OFFERED, "Android offers no API for this")
+        }
     }
 
     private fun tickRoute(test: TestCase, now: Long) {
@@ -193,29 +230,39 @@ class DebugRunner(
         }
     }
 
-    /** True when the test is now waiting; false when it settled on the spot (its result is recorded). */
+    /**
+     * True when the test is now waiting; false when it settled on the spot (its result is
+     * recorded).
+     */
     private fun begin(test: TestCase): Boolean {
         raw.clear()
         sent.clear()
         val check = test.check
-        if (check is Check.AwaitRoute) return beginRoute(test, check.route)
-        if (test.route != env.currentRoute() || (test.route == Route.DIRECT_USB && directUsbFailed)) {
-            record(test, Outcome.ROUTE_UNAVAILABLE, "route ${test.route} is not live")
-            say("${test.id}: route ${test.route} is not live, skipped")
-            return false
-        }
-        val locked = test.route == Route.ANDROID && test.feature != null && env.isLocked(test.feature)
+        val usbDown = test.route == Route.DIRECT_USB && directUsbFailed
+        val notLive = test.route != env.currentRoute() || usbDown
         // Mute is still prompted while locked: a key event is how it would unlock
-        if (locked && test.id != MUTE_ID) {
-            record(test, Outcome.NOT_OFFERED, "Android offers no API for this")
-            say("${test.id}: Android offers no API for this, skipped")
-            return false
+        val locked = test.route == Route.ANDROID && test.feature != null &&
+            test.id != MUTE_ID && env.isLocked(test.feature)
+        return when {
+            check is Check.AwaitRoute -> beginRoute(test, check.route)
+
+            notLive -> skip(test, Outcome.ROUTE_UNAVAILABLE, "route ${test.route} is not live")
+
+            locked -> skip(test, Outcome.NOT_OFFERED, "Android offers no API for this")
+
+            else -> when (check) {
+                is Check.AwaitInput -> beginInput(test, check)
+                is Check.SendOutput -> beginOutput(test, check)
+                is Check.AwaitRoute -> false
+            }
         }
-        return when (check) {
-            is Check.AwaitInput -> beginInput(test, check)
-            is Check.SendOutput -> beginOutput(test, check)
-            is Check.AwaitRoute -> false
-        }
+    }
+
+    /** Records [test] as not run and says why; always false, so begin can return it. */
+    private fun skip(test: TestCase, outcome: Outcome, why: String): Boolean {
+        record(test, outcome, why)
+        say("${test.id}: $why, skipped")
+        return false
     }
 
     private fun beginRoute(test: TestCase, route: Route): Boolean {
@@ -228,7 +275,15 @@ class DebugRunner(
             record(test, Outcome.PASSED, "route came up at once")
             return false
         }
-        deadlineMs = nowMs() + (if (route == Route.DIRECT_USB) AppLimits.ROUTE_SWITCH_TIMEOUT_MS else AppLimits.ANDROID_REBIND_TIMEOUT_MS)
+        deadlineMs =
+            nowMs() +
+            (
+                if (route == Route.DIRECT_USB) {
+                    AppLimits.ROUTE_SWITCH_TIMEOUT_MS
+                } else {
+                    AppLimits.ANDROID_REBIND_TIMEOUT_MS
+                }
+                )
         enter(Phase.WAITING_ROUTE)
         return true
     }
@@ -272,7 +327,16 @@ class DebugRunner(
     }
 
     private fun record(test: TestCase, outcome: Outcome, detail: String) {
-        done.add(TestResult(test.id, test.route, outcome, detail.take(AppLimits.RESULT_DETAIL_CHARS_MAX), raw.toList(), sent.toList()))
+        done.add(
+            TestResult(
+                test.id,
+                test.route,
+                outcome,
+                detail.take(AppLimits.RESULT_DETAIL_CHARS_MAX),
+                raw.toList(),
+                sent.toList(),
+            ),
+        )
         check(done.size <= tests.size) { "more results than tests" }
         matcher = null
         revision += 1
@@ -282,7 +346,16 @@ class DebugRunner(
         // anything not reached stays NOT_PROVEN
         for (i in (done.size) until tests.size) {
             val t = tests[i]
-            done.add(TestResult(t.id, t.route, Outcome.NOT_PROVEN, "never reached", emptyList(), emptyList()))
+            done.add(
+                TestResult(
+                    t.id,
+                    t.route,
+                    Outcome.NOT_PROVEN,
+                    "never reached",
+                    emptyList(),
+                    emptyList(),
+                ),
+            )
         }
         env.setMuteWatched(false)
         enter(Phase.DONE)

@@ -26,7 +26,10 @@ private class FakeLink(private val script: List<ReadResult>) : UsbLink {
     val writes = CopyOnWriteArrayList<ByteArray>()
     private var next = 0
 
-    /** A slow pad: a write still in flight is what a release that skips the writer join would trample. */
+    /**
+     * A slow pad: a write still in flight is what a release that skips the writer join would
+     * trample.
+     */
     @Volatile var writeDelayMs = 0L
 
     @Volatile private var readerThread: Thread? = null
@@ -55,7 +58,9 @@ private class FakeLink(private val script: List<ReadResult>) : UsbLink {
     override fun readFeature(reportId: Int, length: Int): ByteArray? = firmware
 
     override fun releaseInterfaces() {
-        events.add("release readerAlive=${readerThread?.isAlive} writerAlive=${writerThread?.isAlive}")
+        events.add(
+            "release readerAlive=${readerThread?.isAlive} writerAlive=${writerThread?.isAlive}",
+        )
     }
 
     override fun close() {
@@ -120,12 +125,17 @@ class DirectUsbRouteTest {
         val link = open(report("idle"))
         link.writeDelayMs = SLOW_WRITE_MS
         waitUntil("the first report") { live.takeFrame().state.sequence != null }
-        route!!.writer.change(OutputField.LIGHTBAR) { it.copy(lightbar = dev.dsprobe.pad.Rgb(9u, 9u, 9u)) }
+        route!!.writer.change(OutputField.LIGHTBAR) {
+            it.copy(lightbar = dev.dsprobe.pad.Rgb(9u, 9u, 9u))
+        }
         waitUntil("the lightbar write") { link.writes.size == 1 }
         route!!.release()
         assertArrayEquals(TestFixtures.allOffGolden, link.writes.last())
         assertEquals(2, link.writes.size)
-        assertEquals(listOf("write", "write", "release readerAlive=false writerAlive=false", "close"), link.events.toList())
+        assertEquals(
+            listOf("write", "write", "release readerAlive=false writerAlive=false", "close"),
+            link.events.toList(),
+        )
         assertNull(DirectUsbRoute.current)
     }
 
@@ -153,7 +163,11 @@ class DirectUsbRouteTest {
         assertArrayEquals(TestFixtures.allOffGolden, link.writes[0])
         assertNull(DirectUsbRoute.current)
         route!!.release()
-        assertEquals("the writer is halted: the normal release sends nothing more", 1, link.writes.size)
+        assertEquals(
+            "the writer is halted: the normal release sends nothing more",
+            1,
+            link.writes.size,
+        )
         assertEquals(1, link.events.count { it.startsWith("release") })
         assertEquals(1, link.events.count { it == "close" })
     }

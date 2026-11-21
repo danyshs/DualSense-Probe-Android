@@ -14,7 +14,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-private class ModeRoute(override val rumbleMode: RumbleMode?, var levels: MotorLevels? = null) : PadRoute {
+private class ModeRoute(override val rumbleMode: RumbleMode?, var levels: MotorLevels? = null) :
+    PadRoute {
     val sent = ArrayList<OutputRequest>()
 
     override fun send(req: OutputRequest): ApiAnswer {
@@ -85,7 +86,10 @@ class OutputControllerPatternTest {
         assertEquals(2, rig.controller.shown.value.rumbleTrace.size)
         rig.route.levels = MotorLevels(1, 1)
         repeat(AppLimits.RUMBLE_TRACE_SAMPLES_MAX + 20) { rig.controller.tick() }
-        assertEquals(AppLimits.RUMBLE_TRACE_SAMPLES_MAX, rig.controller.shown.value.rumbleTrace.size)
+        assertEquals(
+            AppLimits.RUMBLE_TRACE_SAMPLES_MAX,
+            rig.controller.shown.value.rumbleTrace.size,
+        )
         assertNotNull(rig.controller.shown.value.rumbleTrace.last())
     }
 }

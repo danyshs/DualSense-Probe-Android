@@ -8,18 +8,24 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * What changed between two looks at the pad, as events. USB events first, then input device events,
- * then the second-pad event, so a plug-in reads NoPad(usb) then AndroidMode and an unplug reads the other way.
+ * then the second-pad event, so a plug-in reads NoPad(usb) then AndroidMode and an unplug reads the
+ * other way.
  */
+private const val EVENTS_PER_LOOK_MAX = 3 // one each at most: usb, input devices, second pad
+
 fun eventsFor(prev: FindResult, next: FindResult): List<RouteEvent> {
-    val out = ArrayList<RouteEvent>(4)
+    val out = ArrayList<RouteEvent>(EVENTS_PER_LOOK_MAX)
     if (prev.usb == null && next.usb != null) out.add(RouteEvent.UsbAttached(next.usb))
     if (prev.usb != null && next.usb == null) out.add(RouteEvent.UsbDetached)
     val nextPad = next.inputPad
-    if (nextPad != null && nextPad != prev.inputPad) out.add(RouteEvent.InputDevicesAppeared(nextPad))
+    if (nextPad != null && nextPad != prev.inputPad) {
+        out.add(RouteEvent.InputDevicesAppeared(nextPad))
+    }
     val prevHadInputs = prev.inputPad != null || prev.tooMany
     val nextHasInputs = nextPad != null || next.tooMany
     if (prevHadInputs && !nextHasInputs) out.add(RouteEvent.InputDevicesGone)
     if (next.tooMany && !prev.tooMany) out.add(RouteEvent.SecondPadSeen)
+    check(out.size <= EVENTS_PER_LOOK_MAX) { "events $out" }
     return out
 }
 
@@ -27,10 +33,7 @@ fun eventsFor(prev: FindResult, next: FindResult): List<RouteEvent> {
  * The only owner of the route: nothing else starts or stops one. Main thread only. Events queue,
  * so an effect that posts an event (a resync) is handled after the current one, never inside it.
  */
-class RouteController(
-    private val host: RouteHost,
-    private val log: (String) -> Unit,
-) {
+class RouteController(private val host: RouteHost, private val log: (String) -> Unit) {
     private val mutableState = MutableStateFlow<RouteState>(RouteState.NoPad())
     val state: StateFlow<RouteState> = mutableState.asStateFlow()
 
@@ -54,7 +57,9 @@ class RouteController(
     private fun drain() {
         var handled = 0
         while (queue.isNotEmpty()) {
-            check(handled < AppLimits.ROUTE_EVENTS_PER_DRAIN_MAX) { "route event storm: $handled events in one drain" }
+            check(handled < AppLimits.ROUTE_EVENTS_PER_DRAIN_MAX) {
+                "route event storm: $handled events in one drain"
+            }
             handled += 1
             step(queue.removeFirst())
         }

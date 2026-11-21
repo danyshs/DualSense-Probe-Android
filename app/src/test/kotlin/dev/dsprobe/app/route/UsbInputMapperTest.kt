@@ -17,19 +17,25 @@ import org.junit.Test
 
 private const val EPS = 1e-6f
 
-/** Expected values are worked out from the raw bytes here, not through the parser, so a wrong offset shows. */
+/**
+ * Expected values are worked out from the raw bytes here, not through the parser, so a wrong offset
+ * shows.
+ */
 class UsbInputMapperTest {
     private fun raw(name: String) = TestFixtures.report(name)
 
-    private fun mapped(name: String): PadState = toPadState((parseUsbInput(raw(name)) as ParseResult.Ok).input)
+    private fun mapped(name: String): PadState =
+        toPadState((parseUsbInput(raw(name)) as ParseResult.Ok).input)
 
     private fun u8(r: ByteArray, i: Int) = r[i].toInt() and 0xff
 
     private fun s16(r: ByteArray, i: Int) = (u8(r, i) or (u8(r, i + 1) shl 8)).toShort().toFloat()
 
-    private fun touchX(r: ByteArray, base: Int) = (u8(r, base + 1) or ((u8(r, base + 2) and 0x0f) shl 8)) / Limits.TOUCH_X_PX_MAX.toFloat()
+    private fun touchX(r: ByteArray, base: Int) =
+        (u8(r, base + 1) or ((u8(r, base + 2) and 0x0f) shl 8)) / Limits.TOUCH_X_PX_MAX.toFloat()
 
-    private fun touchY(r: ByteArray, base: Int) = ((u8(r, base + 2) shr 4) or (u8(r, base + 3) shl 4)) / Limits.TOUCH_Y_PX_MAX.toFloat()
+    private fun touchY(r: ByteArray, base: Int) =
+        ((u8(r, base + 2) shr 4) or (u8(r, base + 3) shl 4)) / Limits.TOUCH_Y_PX_MAX.toFloat()
 
     @Test fun sticksAndTriggersFollowTheirBytes() {
         for (name in TestFixtures.names("reports")) {
@@ -59,8 +65,16 @@ class UsbInputMapperTest {
             val gyro = checkNotNull(s.gyro)
             val accel = checkNotNull(s.accel)
             assertEquals(MotionUnit.RAW_COUNTS, gyro.unit)
-            assertEquals("$name gyro", listOf(s16(r, 16), s16(r, 18), s16(r, 20)), listOf(gyro.x, gyro.y, gyro.z))
-            assertEquals("$name accel", listOf(s16(r, 22), s16(r, 24), s16(r, 26)), listOf(accel.x, accel.y, accel.z))
+            assertEquals(
+                "$name gyro",
+                listOf(s16(r, 16), s16(r, 18), s16(r, 20)),
+                listOf(gyro.x, gyro.y, gyro.z),
+            )
+            assertEquals(
+                "$name accel",
+                listOf(s16(r, 22), s16(r, 24), s16(r, 26)),
+                listOf(accel.x, accel.y, accel.z),
+            )
         }
     }
 
@@ -90,18 +104,43 @@ class UsbInputMapperTest {
         }
     }
 
-    private fun idleWith(t: Touch) = (parseUsbInput(raw("idle")) as ParseResult.Ok).input.copy(touches = listOf(t))
+    private fun idleWith(t: Touch) =
+        (parseUsbInput(raw("idle")) as ParseResult.Ok).input.copy(touches = listOf(t))
 
     @Test fun aTouchOutsideThePadIsRefusedNotDrawn() {
-        assertThrows(IllegalArgumentException::class.java) { toPadState(idleWith(Touch(0, Limits.TOUCH_X_PX_MAX + 1, 0))) }
-        assertThrows(IllegalArgumentException::class.java) { toPadState(idleWith(Touch(0, 0, Limits.TOUCH_Y_PX_MAX + 1))) }
+        assertThrows(IllegalArgumentException::class.java) {
+            toPadState(
+                idleWith(
+                    Touch(
+                        0,
+                        Limits.TOUCH_X_PX_MAX + 1,
+                        0,
+                    ),
+                ),
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            toPadState(
+                idleWith(
+                    Touch(
+                        0,
+                        0,
+                        Limits.TOUCH_Y_PX_MAX + 1,
+                    ),
+                ),
+            )
+        }
     }
 
     @Test fun batteryHeadphonesAndSequenceFollowTheirBytes() {
         for (name in TestFixtures.names("reports")) {
             val r = raw(name)
             val s = mapped(name)
-            assertEquals("$name battery", Battery.RawNibble(u8(r, 53) and 0x0f, u8(r, 53) shr 4), s.battery)
+            assertEquals(
+                "$name battery",
+                Battery.RawNibble(u8(r, 53) and 0x0f, u8(r, 53) shr 4),
+                s.battery,
+            )
             assertEquals("$name headphones", u8(r, 54) and 0x01 != 0, s.headphonesIn)
             assertEquals("$name sequence", u8(r, 7), s.sequence)
         }

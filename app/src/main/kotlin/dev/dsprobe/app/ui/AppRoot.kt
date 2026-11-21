@@ -56,13 +56,18 @@ fun AppRoot(session: PadSession) {
     if (feedOn) LaunchedEffect(session) { pump.run(session, runner) }
     BackHandler(enabled = stack.canPop && state !is RouteState.TooMany) { actions.onUp() }
     DsProbeTheme {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, contentColor = MaterialTheme.colorScheme.onBackground) {
+        Surface(
+            Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.onBackground,
+        ) {
             Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                val view = RouteView(state, locked, answers, shown)
                 when (screen) {
-                    Screen.LIVE -> LiveScreen(state, session.live, locked, answers, shown, actions)
-                    Screen.OUTPUTS -> OutputsScreen(state, session.live, locked, answers, shown, session.outputs, actions)
+                    Screen.LIVE -> LiveScreen(view, session.live, actions)
+                    Screen.OUTPUTS -> OutputsScreen(view, session.live, session.outputs, actions)
                     Screen.DEBUG -> DebugScreen(session, runner, pump, actions)
-                    Screen.GUIDED -> GuidedScreen(session, runner, state, locked, shown, pump, actions)
+                    Screen.GUIDED -> GuidedScreen(session, runner, view, pump, actions)
                     Screen.LOG -> LogScreen(session, runner, actions)
                     Screen.TOO_MANY -> TooManyScreen()
                 }

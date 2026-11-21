@@ -36,14 +36,26 @@ class TryItTest {
     }
 
     @Test fun theMuteChoicesSendTheirOwnMode() {
-        val modes = listOf(TryChoice.MUTE_OFF to MuteLed.OFF, TryChoice.MUTE_ON to MuteLed.ON, TryChoice.MUTE_PULSE to MuteLed.PULSE)
-        for ((choice, mode) in modes) assertEquals(listOf<OutputRequest>(OutputRequest.SetMuteLed(mode)), fire(choice))
+        val modes = listOf(
+            TryChoice.MUTE_OFF to MuteLed.OFF,
+            TryChoice.MUTE_ON to MuteLed.ON,
+            TryChoice.MUTE_PULSE to MuteLed.PULSE,
+        )
+        for ((choice, mode) in modes) {
+            assertEquals(
+                listOf<OutputRequest>(OutputRequest.SetMuteLed(mode)),
+                fire(choice),
+            )
+        }
     }
 
     @Test fun theBigButtonOfEachKindIsItsFirstChoiceAndEveryOutputKindHasChoices() {
         for (kind in TryKind.entries) {
-            if (kind == TryKind.MIC || kind == TryKind.SPEAKER || kind == TryKind.HEADPHONES) assertTrue(kind.name, choicesOf(kind).isEmpty())
-            else assertTrue(kind.name, choicesOf(kind).isNotEmpty())
+            if (kind == TryKind.MIC || kind == TryKind.SPEAKER || kind == TryKind.HEADPHONES) {
+                assertTrue(kind.name, choicesOf(kind).isEmpty())
+            } else {
+                assertTrue(kind.name, choicesOf(kind).isNotEmpty())
+            }
         }
         assertEquals(TryChoice.RUMBLE_BOTH, choicesOf(TryKind.RUMBLE).first())
         assertEquals(TryChoice.MUTE_PULSE, choicesOf(TryKind.MUTE_LED).first())
@@ -61,7 +73,8 @@ class TryItTest {
     @Test fun notSureDismissesTheQuestionWithoutLoggingAnAnswer() {
         val route = RecordingRoute()
         val log = ArrayList<String>()
-        val controller = OutputController({ LiveRoute(route, Route.ANDROID) }, { 1_000L }, { log.add(it) })
+        val controller =
+            OutputController({ LiveRoute(route, Route.ANDROID) }, { 1_000L }, { log.add(it) })
         controller.setPlayerLeds(0x10)
         assertTrue(controller.shown.value.ask != null)
         controller.dismissAsk()

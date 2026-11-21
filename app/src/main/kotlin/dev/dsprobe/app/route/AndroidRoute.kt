@@ -8,8 +8,8 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.hardware.lights.Light
 import android.hardware.lights.LightState
-import android.hardware.lights.LightsRequest
 import android.hardware.lights.LightsManager.LightsSession
+import android.hardware.lights.LightsRequest
 import android.os.CombinedVibration
 import android.os.Handler
 import android.os.Looper
@@ -47,18 +47,14 @@ internal fun nextLateDropCount(current: Int): Int {
 }
 
 /**
- * Runs [close] only when a request was made: the system throws on closing a session that never had one.
- * Returns the failure instead of throwing, since that is Android's fault, not ours.
+ * Runs [close] only when a request was made: the system throws on closing a session that never had
+ * one. A failure is Android's, not ours, so it is logged through [boundary], not thrown.
  */
-internal fun closeIfRequested(requested: Boolean, close: () -> Unit): RuntimeException? {
-    if (!requested) return null
-    return try {
-        close()
-        null
-    } catch (e: RuntimeException) {
-        e
-    }
-}
+internal fun closeLightsIfRequested(
+    requested: Boolean,
+    log: (String) -> Unit,
+    close: () -> Unit,
+): Boolean = !requested || boundary("lights session close", log, close)
 
 private fun mainThread(): Thread = Looper.getMainLooper().thread
 
@@ -90,7 +86,10 @@ class AndroidRoute(
     private var playStartMs = 0L
     private val mutableAnswers = MutableStateFlow<AndroidAnswers?>(null)
 
-    /** What Android says it offers for the pad, asked again on every start and by [requery]; null while the route is not live. */
+    /**
+     * What Android says it offers for the pad, asked again on every start and by [requery]; null
+     * while the route is not live.
+     */
     val answers: StateFlow<AndroidAnswers?> = mutableAnswers.asStateFlow()
 
     val isLive: Boolean get() = device != null
@@ -117,7 +116,11 @@ class AndroidRoute(
                 else -> return
             }
             live.publish(state)
-            if (feed.isActive) sensorTraceEvent(System.nanoTime(), event.sensor.type, x, y, z, state)?.let(feed::publish)
+            if (feed.isActive) {
+                val values = floatArrayOf(x, y, z)
+                sensorTraceEvent(System.nanoTime(), event.sensor.type, values, state)
+                    ?.let(feed::publish)
+            }
         }
 
         override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) = Unit
@@ -129,7 +132,10 @@ class AndroidRoute(
             val current = device ?: return
             val battery = askOrNull("batteryState", ::logWarn) { current.batteryState }
             if (battery != null) {
-                state = state.copy(battery = batteryFrom(battery.isPresent, battery.capacity, battery.status))
+                state =
+                    state.copy(
+                        battery = batteryFrom(battery.isPresent, battery.capacity, battery.status),
+                    )
                 live.publish(state)
             }
             handler.postDelayed(this, AppLimits.BATTERY_POLL_INTERVAL_MS)
@@ -138,14 +144,19 @@ class AndroidRoute(
 
     fun handlesDevice(deviceId: Int): Boolean = pad?.inputDeviceIds?.contains(deviceId) == true
 
-    /** Starts listening on the pad's input devices. Asking again for the same pad changes nothing. */
+    /**
+     * Starts listening on the pad's input devices. Asking again for the same pad changes nothing.
+     */
     fun start(found: FoundPad) {
         check(Thread.currentThread() === mainThread()) { "AndroidRoute starts on the main thread" }
         if (pad == found) return
         stop()
         val first = InputDevice.getDevice(found.inputDeviceIds.first())
         if (first == null) {
-            Log.w(TAG, "input device ${found.inputDeviceIds.first()} vanished before the route started")
+            Log.w(
+                TAG,
+                "input device ${found.inputDeviceIds.first()} vanished before the route started",
+            )
             return
         }
         pad = found
@@ -165,7 +176,13 @@ class AndroidRoute(
     fun requery() {
         check(Thread.currentThread() === mainThread()) { "AndroidRoute asks on the main thread" }
         val current = pad?.inputDeviceIds?.first()?.let { InputDevice.getDevice(it) } ?: return
-        mutableAnswers.value = readAnswers(context, current, touchPointersSeen, ::logWarn).copy(muteKeyCode = mutableAnswers.value?.muteKeyCode)
+        mutableAnswers.value =
+            readAnswers(
+                context,
+                current,
+                touchPointersSeen,
+                ::logWarn,
+            ).copy(muteKeyCode = mutableAnswers.value?.muteKeyCode)
     }
 
     private fun registerSensors(from: InputDevice) {
@@ -177,17 +194,21 @@ class AndroidRoute(
                 Log.w(TAG, "no sensor of type $type on the pad")
                 continue
             }
-            manager.registerListener(sensorListener, sensor, SensorManager.SENSOR_DELAY_GAME, handler)
+            manager.registerListener(
+                sensorListener,
+                sensor,
+                SensorManager.SENSOR_DELAY_GAME,
+                handler,
+            )
         }
     }
 
     private fun openLights(from: InputDevice) {
-        lightsSession = try {
-            from.lightsManager.openSession()
-        } catch (e: RuntimeException) {
-            Log.w(TAG, "lights session refused", e)
-            null
-        }
+        lightsSession = askOrNull("lights session", ::warn) { from.lightsManager.openSession() }
+    }
+
+    private fun warn(message: String) {
+        Log.w(TAG, message)
     }
 
     override fun stop() {
@@ -198,7 +219,7 @@ class AndroidRoute(
         sensorManager = null
         device?.vibratorManager?.cancel()
         playing = null
-        closeIfRequested(lightsRequested) { lightsSession?.close() }?.let { Log.w(TAG, "lights session close failed", it) }
+        closeLightsIfRequested(lightsRequested, ::warn) { lightsSession?.close() }
         lightsSession = null
         lightsRequested = false
         mutableAnswers.value = null
@@ -220,7 +241,15 @@ class AndroidRoute(
             noteMuteKey(event.keyCode, down)
             if (feed.isActive) {
                 val name = KeyEvent.keyCodeToString(event.keyCode)
-                feed.publish(keyTraceEvent(System.nanoTime(), event.deviceId, down, event.keyCode, name, event.scanCode, event.source, state))
+                feed.publish(
+                    keyTraceEvent(
+                        EventOrigin(System.nanoTime(), event.deviceId, event.source, state),
+                        down,
+                        event.keyCode,
+                        name,
+                        event.scanCode,
+                    ),
+                )
             }
         }
         return true
@@ -234,36 +263,61 @@ class AndroidRoute(
         if (next !== current) mutableAnswers.value = next
     }
 
-    /** Joystick axes, or the touchpad's mouse pointer scaled by the window size. Returns true when it was the pad's. */
-    fun onMotion(event: MotionEvent, windowWidthPx: Int, windowHeightPx: Int, hook: String): Boolean {
+    /**
+     * Joystick axes, or the touchpad's mouse pointer scaled by the window size. Returns true when
+     * it was the pad's.
+     */
+    fun onMotion(
+        event: MotionEvent,
+        windowWidthPx: Int,
+        windowHeightPx: Int,
+        hook: String,
+    ): Boolean {
         if (droppedAsLate()) return false
         if (!handlesDevice(event.deviceId)) return false
-        if (event.isFromSource(InputDevice.SOURCE_JOYSTICK) && event.action == MotionEvent.ACTION_MOVE) {
+        val isStickMove =
+            event.isFromSource(InputDevice.SOURCE_JOYSTICK) &&
+                event.action == MotionEvent.ACTION_MOVE
+        val isPointer =
+            event.isFromSource(InputDevice.SOURCE_MOUSE) ||
+                event.isFromSource(InputDevice.SOURCE_TOUCHPAD)
+        if (isStickMove) {
             val reading = readAxes(event)
             val before = lastAxes
             lastAxes = reading
             state = state.withAxes(reading)
             live.publish(state)
             if (feed.isActive) {
-                axisTraceEvents(before, reading, hook, event.deviceId, event.source, System.nanoTime(), state).forEach(feed::publish)
+                axisTraceEvents(
+                    EventOrigin(System.nanoTime(), event.deviceId, event.source, state),
+                    hook,
+                    before,
+                    reading,
+                ).forEach(feed::publish)
             }
-        } else if (event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_TOUCHPAD)) {
-            if (event.action != MotionEvent.ACTION_SCROLL && windowWidthPx > 0 && windowHeightPx > 0) {
+        } else if (isPointer) {
+            val hasWindow = windowWidthPx > 0 && windowHeightPx > 0
+            if (event.action != MotionEvent.ACTION_SCROLL && hasWindow) {
                 noteFingers(event.pointerCount)
                 val primary = event.buttonState and MotionEvent.BUTTON_PRIMARY != 0
                 val wasDown = Button.TOUCHPAD_CLICK in state.held
-                state = state.withPointer(event.x / windowWidthPx, event.y / windowHeightPx, primary)
+                state =
+                    state.withPointer(event.x / windowWidthPx, event.y / windowHeightPx, primary)
                 live.publish(state)
                 if (feed.isActive) {
                     val dot = state.touches.single()
-                    pointerTraceEvents(System.nanoTime(), event.deviceId, event.source, hook, dot.x, dot.y, wasDown, primary, state).forEach(feed::publish)
+                    val origin =
+                        EventOrigin(System.nanoTime(), event.deviceId, event.source, state)
+                    val events = pointerTraceEvents(origin, hook, dot, wasDown, primary)
+                    events.forEach(feed::publish)
                 }
             }
         }
         return true
     }
 
-    // a second finger on the touchpad is the one thing Android has no query for: it is seen or it is not
+    // a second finger on the touchpad is the one thing Android has no query for: it is seen or it
+    // is not
     private fun noteFingers(count: Int) {
         if (count <= touchPointersSeen) return
         touchPointersSeen = count
@@ -271,36 +325,79 @@ class AndroidRoute(
     }
 
     private fun readAxes(e: MotionEvent) = AxisReading(
-        x = e.getAxisValue(MotionEvent.AXIS_X), y = e.getAxisValue(MotionEvent.AXIS_Y),
-        z = e.getAxisValue(MotionEvent.AXIS_Z), rz = e.getAxisValue(MotionEvent.AXIS_RZ),
-        lTrigger = e.getAxisValue(MotionEvent.AXIS_LTRIGGER), rTrigger = e.getAxisValue(MotionEvent.AXIS_RTRIGGER),
-        hatX = e.getAxisValue(MotionEvent.AXIS_HAT_X), hatY = e.getAxisValue(MotionEvent.AXIS_HAT_Y),
+        x = e.getAxisValue(MotionEvent.AXIS_X),
+        y = e.getAxisValue(MotionEvent.AXIS_Y),
+        z = e.getAxisValue(MotionEvent.AXIS_Z),
+        rz = e.getAxisValue(MotionEvent.AXIS_RZ),
+        lTrigger = e.getAxisValue(MotionEvent.AXIS_LTRIGGER),
+        rTrigger = e.getAxisValue(MotionEvent.AXIS_RTRIGGER),
+        hatX = e.getAxisValue(MotionEvent.AXIS_HAT_X),
+        hatY = e.getAxisValue(MotionEvent.AXIS_HAT_Y),
     )
 
+    // the platform's own refusal, whatever its type, is the answer
+    @Suppress("TooGenericExceptionCaught")
     override fun send(req: OutputRequest): ApiAnswer {
+        validate(req) // our own bad request must crash, not read as Android's refusal below
         val current = device ?: return ApiAnswer.Failed("Android mode is not live")
         callsMade.clear()
         val answer = try {
             when (req) {
                 is OutputRequest.Rumble -> sendRumble(current, req)
+
                 is OutputRequest.RumblePattern -> sendPattern(current, req)
+
                 is OutputRequest.SetRumbleMode -> ApiAnswer.Failed("Android has no rumble modes")
+
                 is OutputRequest.Lightbar -> sendLightbar(current, req)
+
                 is OutputRequest.PlayerLeds -> sendPlayerLeds(current, req)
+
                 is OutputRequest.SetMuteLed -> sendMuteLed(current, req)
-                is OutputRequest.Trigger -> ApiAnswer.Failed("Android has no API for adaptive triggers")
-                is OutputRequest.AudioTone -> ApiAnswer.Failed("Android lists no audio output for the pad")
+
+                is OutputRequest.Trigger -> ApiAnswer.Failed(
+                    "Android has no API for adaptive triggers",
+                )
+
+                is OutputRequest.AudioTone -> ApiAnswer.Failed(
+                    "Android lists no audio output for the pad",
+                )
             }
         } catch (e: RuntimeException) {
             // the platform's own answer to a bad request, handed back as the result
             ApiAnswer.Failed(e.toString())
         }
-        if (feed.isActive) feed.publish(androidOutputEvent(System.nanoTime(), req, callsMade.toList(), answer, state))
+        if (feed.isActive) {
+            feed.publish(
+                androidOutputEvent(System.nanoTime(), req, callsMade.toList(), answer, state),
+            )
+        }
         return answer
     }
 
+    /** The checks on our own requests, kept outside send's catch of Android's failures. */
+    private fun validate(req: OutputRequest) {
+        when (req) {
+            is OutputRequest.Rumble -> require(req.durationMs in 1..Limits.RUMBLE_DURATION_MS_MAX) {
+                "rumble duration ${req.durationMs}"
+            }
+
+            is OutputRequest.RumblePattern -> {
+                val totalMs = totalDurationMs(req.steps)
+                require(totalMs in 1..Limits.RUMBLE_DURATION_MS_MAX) {
+                    "rumble pattern $totalMs ms"
+                }
+            }
+
+            is OutputRequest.PlayerLeds -> require(req.mask in 0..Limits.PLAYER_LED_MASK_MAX) {
+                "player LED mask ${req.mask}"
+            }
+
+            else -> Unit
+        }
+    }
+
     private fun sendRumble(from: InputDevice, req: OutputRequest.Rumble): ApiAnswer {
-        require(req.durationMs in 1..Limits.RUMBLE_DURATION_MS_MAX) { "rumble duration ${req.durationMs}" }
         val manager: VibratorManager = from.vibratorManager
         val plan = rumblePlan(manager.vibratorIds.toList(), req.left.toInt(), req.right.toInt())
         if (plan.isEmpty()) {
@@ -310,7 +407,12 @@ class AndroidRoute(
             return ApiAnswer.Ok
         }
         val effect = CombinedVibration.startParallel()
-        for ((id, strength) in plan) effect.addVibrator(id, VibrationEffect.createOneShot(req.durationMs.toLong(), strength))
+        for ((id, strength) in plan) {
+            effect.addVibrator(
+                id,
+                VibrationEffect.createOneShot(req.durationMs.toLong(), strength),
+            )
+        }
         callsMade.add(oneShotCall(plan, req.durationMs))
         manager.vibrate(effect.combine())
         notePlaying(listOf(RumbleStep(req.left.toInt(), req.right.toInt(), req.durationMs)))
@@ -319,8 +421,6 @@ class AndroidRoute(
 
     /** One waveform per vibrator id Android reports, played together; Android ends it by itself. */
     private fun sendPattern(from: InputDevice, req: OutputRequest.RumblePattern): ApiAnswer {
-        val totalMs = totalDurationMs(req.steps)
-        require(totalMs in 1..Limits.RUMBLE_DURATION_MS_MAX) { "rumble pattern $totalMs ms" }
         val manager: VibratorManager = from.vibratorManager
         val lanes = waveformsFor(manager.vibratorIds.toList(), req.steps)
         manager.cancel() // the new pattern replaces whatever was playing, on every motor
@@ -330,7 +430,12 @@ class AndroidRoute(
             return ApiAnswer.Ok
         }
         val effect = CombinedVibration.startParallel()
-        for (lane in lanes) effect.addVibrator(lane.vibratorId, VibrationEffect.createWaveform(lane.timingsMs, lane.amplitudes, NO_REPEAT))
+        for (lane in lanes) {
+            effect.addVibrator(
+                lane.vibratorId,
+                VibrationEffect.createWaveform(lane.timingsMs, lane.amplitudes, NO_REPEAT),
+            )
+        }
         callsMade.add(waveformCall(lanes))
         manager.vibrate(effect.combine())
         notePlaying(req.steps)
@@ -361,7 +466,6 @@ class AndroidRoute(
     }
 
     private fun sendPlayerLeds(from: InputDevice, req: OutputRequest.PlayerLeds): ApiAnswer {
-        require(req.mask in 0..Limits.PLAYER_LED_MASK_MAX) { "player LED mask ${req.mask}" }
         val lights = from.lightsManager.lights
         val builder = LightsRequest.Builder()
         val entries = ArrayList<LightEntry>(AppLimits.PLAYER_LED_COUNT)
@@ -379,17 +483,22 @@ class AndroidRoute(
 
     // only reachable once Android lists a light that names the mute LED; it has no pulse mode
     private fun sendMuteLed(from: InputDevice, req: OutputRequest.SetMuteLed): ApiAnswer {
-        val light = from.lightsManager.lights.firstOrNull { it.name.contains(MUTE_LIGHT_NAME_PART, ignoreCase = true) }
-            ?: return ApiAnswer.Failed("Android lists no light for the mute LED")
+        val light =
+            from.lightsManager.lights.firstOrNull {
+                it.name.contains(MUTE_LIGHT_NAME_PART, ignoreCase = true)
+            }
+                ?: return ApiAnswer.Failed("Android lists no light for the mute LED")
         if (req.mode == MuteLed.PULSE) return ApiAnswer.Failed("Android lights have no pulse mode")
         return request(light, if (req.mode == MuteLed.ON) Color.WHITE else Color.BLACK)
     }
 
-    private fun request(light: Light, color: Int): ApiAnswer =
-        submit(
-            LightsRequest.Builder().addLight(light, LightState.Builder().setColor(color).build()).build(),
-            listOf(LightEntry(light.name, light.id, color)),
-        )
+    private fun request(light: Light, color: Int): ApiAnswer = submit(
+        LightsRequest.Builder().addLight(
+            light,
+            LightState.Builder().setColor(color).build(),
+        ).build(),
+        listOf(LightEntry(light.name, light.id, color)),
+    )
 
     private fun submit(request: LightsRequest, entries: List<LightEntry>): ApiAnswer {
         val session = lightsSession ?: return ApiAnswer.Failed("no lights session")

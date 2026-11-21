@@ -72,9 +72,15 @@ class DirectUsbTraceTest {
         waitFor("the lightbar row") { collected.any { it.control == "out.lightbar" } }
         val event = collected.first { it.control == "out.lightbar" }
         val text = checkNotNull(event.described)
-        assertTrue(text, text.contains("request Lightbar(rgb ff0000)") && text.contains("bytes 45: 00 -> ff") && text.contains("sent ok"))
+        for (part in listOf("request Lightbar(rgb ff0000)", "bytes 45: 00 -> ff", "sent ok")) {
+            assertTrue(text, text.contains(part))
+        }
         assertTrue(text, text.contains("[P43]"))
-        assertEquals("the bytes in the row are the bytes the pad got", link.writes.first().toList(), checkNotNull(event.raw).toList())
+        assertEquals(
+            "the bytes in the row are the bytes the pad got",
+            link.writes.first().toList(),
+            checkNotNull(event.raw).toList(),
+        )
         assertEquals(63, event.raw.size)
     }
 
@@ -97,7 +103,13 @@ class DirectUsbTraceTest {
         feed.subscribe()
         route!!.send(OutputRequest.Lightbar(Rgb(0u, 255u, 0u)))
         waitFor("the row after subscribing") { collected.any { it.control == "out.lightbar" } }
-        assertTrue(checkNotNull(collected.first { it.control == "out.lightbar" }.described).contains("45: ff -> 00"))
+        assertTrue(
+            checkNotNull(
+                collected.first {
+                    it.control == "out.lightbar"
+                }.described,
+            ).contains("45: ff -> 00"),
+        )
     }
 
     @Test fun inputReportsReachTheFeedWithTheirBytesAndTheParsedState() {

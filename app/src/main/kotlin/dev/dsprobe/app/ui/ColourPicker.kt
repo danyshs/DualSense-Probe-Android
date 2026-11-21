@@ -63,9 +63,21 @@ private fun DragCanvas(
         if (!enabled) return@pointerInput
         awaitEachGesture {
             val down = awaitFirstDown()
-            latestFraction((down.position.x / size.width).coerceIn(0f, 1f), (down.position.y / size.height).coerceIn(0f, 1f))
+            latestFraction(
+                (down.position.x / size.width).coerceIn(0f, 1f),
+                (
+                    down.position.y /
+                        size.height
+                    ).coerceIn(0f, 1f),
+            )
             drag(down.id) { change ->
-                latestFraction((change.position.x / size.width).coerceIn(0f, 1f), (change.position.y / size.height).coerceIn(0f, 1f))
+                latestFraction(
+                    (change.position.x / size.width).coerceIn(0f, 1f),
+                    (
+                        change.position.y /
+                            size.height
+                        ).coerceIn(0f, 1f),
+                )
                 change.consume()
             }
             latestEnd()
@@ -74,24 +86,41 @@ private fun DragCanvas(
     Canvas(modifier.then(input), onDraw = draw)
 }
 
+private const val MARKER_RING_PX = 3f
+private const val MARKER_EDGE_PX = 1.5f
+
 private fun DrawScope.drawSquare(hsv: Hsv) {
     val hue = hsvToRgb(Hsv(hsv.hue, 1f, 1f)).toColor()
     drawRect(Brush.horizontalGradient(listOf(Color.White, hue)))
     drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
     val at = Offset(hsv.sat * size.width, (1f - hsv.value) * size.height)
-    drawCircle(Color.White, MARKER_RADIUS_PX, at, style = Stroke(width = 3f))
-    drawCircle(Color.Black, MARKER_RADIUS_PX + 3f, at, style = Stroke(width = 1.5f))
+    // a white ring inside a black one reads on both ends of the square
+    drawCircle(Color.White, MARKER_RADIUS_PX, at, style = Stroke(width = MARKER_RING_PX))
+    drawCircle(
+        Color.Black,
+        MARKER_RADIUS_PX + MARKER_RING_PX,
+        at,
+        style = Stroke(width = MARKER_EDGE_PX),
+    )
 }
 
 private fun DrawScope.drawStrip(hsv: Hsv) {
-    val stops = (0..HUE_STOPS).map { hsvToRgb(Hsv(it * HUE_DEGREES_MAX / HUE_STOPS, 1f, 1f)).toColor() }
+    val stops = (0..HUE_STOPS).map {
+        hsvToRgb(Hsv(it * HUE_DEGREES_MAX / HUE_STOPS, 1f, 1f)).toColor()
+    }
     drawRect(Brush.horizontalGradient(stops))
     val x = hsv.hue / HUE_DEGREES_MAX * size.width
     drawLine(Color.White, Offset(x, 0f), Offset(x, size.height), strokeWidth = 5f)
 }
 
 @Composable
-private fun ValueField(label: String, shown: String, modifier: Modifier, enabled: Boolean, onText: (String) -> Unit) {
+private fun ValueField(
+    label: String,
+    shown: String,
+    modifier: Modifier,
+    enabled: Boolean,
+    onText: (String) -> Unit,
+) {
     var text by remember(shown) { mutableStateOf(shown) }
     OutlinedTextField(
         value = text,
@@ -109,7 +138,8 @@ private fun ValueField(label: String, shown: String, modifier: Modifier, enabled
 }
 
 /**
- * A saturation-value square, a hue strip, and R, G, B and hex fields kept in step. Dragging gets near any
+ * A saturation-value square, a hue strip, and R, G, B and hex fields kept in step. Dragging gets
+ * near any
  * colour; the fields reach each of the 16.7 million exactly. [onColour] fires on every change (the
  * controller rate-limits), [onCommit] when a drag ends or a field is committed.
  */
@@ -130,12 +160,18 @@ fun ColourPicker(enabled: Boolean, start: Rgb, onColour: (Rgb) -> Unit, onCommit
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         DragCanvas(
-            enabled, Modifier.fillMaxWidth().aspectRatio(SQUARE_ASPECT),
-            onFraction = { x, y -> fromHsv(Hsv(hsv.hue, x, 1f - y)) }, onEnd = onCommit,
+            enabled,
+            Modifier.fillMaxWidth().aspectRatio(SQUARE_ASPECT),
+            onFraction = { x, y -> fromHsv(Hsv(hsv.hue, x, 1f - y)) },
+            onEnd = onCommit,
         ) { drawSquare(hsv) }
         DragCanvas(
-            enabled, Modifier.fillMaxWidth().height(STRIP_HEIGHT_DP.dp),
-            onFraction = { x, _ -> fromHsv(Hsv(x * HUE_DEGREES_MAX, hsv.sat, hsv.value)) }, onEnd = onCommit,
+            enabled,
+            Modifier.fillMaxWidth().height(STRIP_HEIGHT_DP.dp),
+            onFraction = { x, _ ->
+                fromHsv(Hsv(x * HUE_DEGREES_MAX, hsv.sat, hsv.value))
+            },
+            onEnd = onCommit,
         ) { drawStrip(hsv) }
         Row(Modifier.fillMaxWidth().background(rgb.toColor()).height(STRIP_HEIGHT_DP.dp)) {}
         ChannelFields(enabled, rgb, fromRgb)
@@ -155,7 +191,12 @@ private fun ChannelFields(enabled: Boolean, rgb: Rgb, onRgb: (Rgb) -> Unit) {
         ValueField(stringResource(R.string.field_b), rgb.b.toString(), each, enabled) { t ->
             parseChannel(t)?.let { onRgb(rgb.copy(b = it)) }
         }
-        ValueField(stringResource(R.string.field_hex), rgb.toHex(), Modifier.weight(HEX_FIELD_WEIGHT), enabled) { t ->
+        ValueField(
+            stringResource(R.string.field_hex),
+            rgb.toHex(),
+            Modifier.weight(HEX_FIELD_WEIGHT),
+            enabled,
+        ) { t ->
             parseHex(t)?.let(onRgb)
         }
     }

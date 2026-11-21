@@ -5,8 +5,14 @@ import dev.dsprobe.pad.Dpad
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
-/** What the screen draws for one frame: the newest state plus every press seen since the last frame. */
-data class Frame(val state: PadState, val pressedSinceLast: Set<Button>, val dpadSinceLast: Set<Dpad>) {
+/**
+ * What the screen draws for one frame: the newest state plus every press seen since the last frame.
+ */
+data class Frame(
+    val state: PadState,
+    val pressedSinceLast: Set<Button>,
+    val dpadSinceLast: Set<Dpad>,
+) {
     companion object {
         val EMPTY = Frame(PadState.EMPTY, emptySet(), emptySet())
     }
@@ -47,7 +53,9 @@ class LiveState {
     }
 
     fun publish(s: PadState) {
-        check(writer === Thread.currentThread()) { "publish from a thread that is not the route's writer" }
+        check(writer === Thread.currentThread()) {
+            "publish from a thread that is not the route's writer"
+        }
         state.set(s)
         latched.getAndUpdate { it or bitsOf(s) }
     }
@@ -56,7 +64,11 @@ class LiveState {
         val bits = latched.getAndSet(0)
         val current = state.get()
         val buttons = BUTTONS.filterTo(HashSet()) { bits and (1 shl it.ordinal) != 0 }
-        val dirs = DPAD_DIRECTIONS.filterTo(HashSet()) { bits and (1 shl (DPAD_BIT_BASE + it.ordinal)) != 0 }
+        val dirs = DPAD_DIRECTIONS.filterTo(HashSet()) {
+            bits and
+                (1 shl (DPAD_BIT_BASE + it.ordinal)) !=
+                0
+        }
         return Frame(current, buttons, dirs)
     }
 

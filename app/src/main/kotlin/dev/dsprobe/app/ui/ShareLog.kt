@@ -8,7 +8,10 @@ import java.io.File
 private const val LOG_DIR = "logs"
 private const val LOG_FILE = "dsprobe-log.txt"
 
-/** Writes the log under the app's own files and offers it through the share sheet; only that one file is exposed. */
+/**
+ * Writes the log under the app's own files and offers it through the share sheet; only that one
+ * file is exposed.
+ */
 fun shareLog(context: Context, text: String, chooserTitle: String) {
     val dir = File(context.filesDir, LOG_DIR)
     check(dir.isDirectory || dir.mkdirs()) { "cannot create the log folder" }

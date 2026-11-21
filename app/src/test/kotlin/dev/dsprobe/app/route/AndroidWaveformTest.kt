@@ -47,18 +47,22 @@ class AndroidWaveformTest {
     @Test fun everyPatternBecomesTimingsThatMatchAndAmplitudesOffOrOneTo255() {
         for (id in PatternId.entries) {
             val steps = buildPattern(id, 255, 255, 5_000, 4)
-            for (ids in listOf(listOf(0, 1), listOf(0))) for (lane in waveformsFor(ids, steps)) {
-                assertEquals(steps.size, lane.timingsMs.size)
-                assertEquals(steps.size, lane.amplitudes.size)
-                assertEquals(totalDurationMs(steps).toLong(), lane.timingsMs.sum())
-                assertTrue("$id timings", lane.timingsMs.all { it >= 1 })
-                assertTrue("$id amplitudes", lane.amplitudes.all { it in 0..255 })
-                assertTrue("$id has a moving step", lane.amplitudes.any { it in 1..255 })
+            for (ids in listOf(listOf(0, 1), listOf(0))) {
+                for (lane in waveformsFor(ids, steps)) {
+                    assertEquals(steps.size, lane.timingsMs.size)
+                    assertEquals(steps.size, lane.amplitudes.size)
+                    assertEquals(totalDurationMs(steps).toLong(), lane.timingsMs.sum())
+                    assertTrue("$id timings", lane.timingsMs.all { it >= 1 })
+                    assertTrue("$id amplitudes", lane.amplitudes.all { it in 0..255 })
+                    assertTrue("$id has a moving step", lane.amplitudes.any { it in 1..255 })
+                }
             }
         }
     }
 
     @Test fun anEmptyPatternIsRefused() {
-        assertThrows(IllegalArgumentException::class.java) { waveformsFor(listOf(0, 1), emptyList()) }
+        assertThrows(IllegalArgumentException::class.java) {
+            waveformsFor(listOf(0, 1), emptyList())
+        }
     }
 }

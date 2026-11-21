@@ -4,13 +4,6 @@ import dev.dsprobe.pad.Rgb
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** Hue in degrees 0..360, saturation and value 0..1: the picker's square and strip. */
-data class Hsv(val hue: Float, val sat: Float, val value: Float) {
-    init {
-        require(hue in 0f..HUE_DEGREES_MAX && sat in 0f..1f && value in 0f..1f) { "hsv $hue $sat $value" }
-    }
-}
-
 const val HUE_DEGREES_MAX = 360f
 private const val CHANNEL_MAX = 255
 private const val HEX_DIGITS = 6
@@ -20,8 +13,17 @@ private const val SECTORS = 6
 private const val SECTOR_LAST = SECTORS - 1
 private const val HEX_RADIX = 16
 private const val BITS_PER_CHANNEL = 8
+private const val BITS_PER_HEX_DIGIT = 4
+private const val HEX_DIGIT_MASK = 0xf
 
-private fun channel(v: Float): UByte = (v * CHANNEL_MAX).roundToInt().coerceIn(0, CHANNEL_MAX).toUByte()
+// hue sectors, 60 degrees each, named by the channel that peaks there
+private const val SECTOR_GREEN_TOP = 2f
+private const val SECTOR_BLUE_TOP = 4f
+private const val SECTOR_CYAN = 3
+private const val SECTOR_BLUE = 4
+
+private fun channel(v: Float): UByte =
+    (v * CHANNEL_MAX).roundToInt().coerceIn(0, CHANNEL_MAX).toUByte()
 
 fun hsvToRgb(hsv: Hsv): Rgb {
     val chroma = hsv.value * hsv.sat
@@ -32,8 +34,8 @@ fun hsvToRgb(hsv: Hsv): Rgb {
         0 -> Triple(chroma, second, 0f)
         1 -> Triple(second, chroma, 0f)
         2 -> Triple(0f, chroma, second)
-        3 -> Triple(0f, second, chroma)
-        4 -> Triple(second, 0f, chroma)
+        SECTOR_CYAN -> Triple(0f, second, chroma)
+        SECTOR_BLUE -> Triple(second, 0f, chroma)
         else -> Triple(chroma, 0f, second)
     }
     return Rgb(channel(r + base), channel(g + base), channel(b + base))
@@ -48,25 +50,38 @@ fun rgbToHsv(rgb: Rgb): Hsv {
     val sector = when {
         spread == 0f -> 0f
         top == r -> ((g - b) / spread + SECTORS) % SECTORS
-        top == g -> (b - r) / spread + 2f
-        else -> (r - g) / spread + 4f
+        top == g -> (b - r) / spread + SECTOR_GREEN_TOP
+        else -> (r - g) / spread + SECTOR_BLUE_TOP
     }
-    return Hsv((sector * DEGREES_PER_SECTOR).coerceIn(0f, HUE_DEGREES_MAX), if (top == 0f) 0f else spread / top, top)
+    return Hsv(
+        (sector * DEGREES_PER_SECTOR).coerceIn(0f, HUE_DEGREES_MAX),
+        if (top == 0f) 0f else spread / top,
+        top,
+    )
 }
 
 private const val HEX_CHARS = "0123456789abcdef"
 
-/** Six lowercase hex digits, no prefix: the format of the hex field and of the golden file names. */
+/**
+ * Six lowercase hex digits, no prefix: the format of the hex field and of the golden file names.
+ */
 fun Rgb.toHex(): String {
-    val packed = (r.toInt() shl (2 * BITS_PER_CHANNEL)) or (g.toInt() shl BITS_PER_CHANNEL) or b.toInt()
+    val packed =
+        (r.toInt() shl (2 * BITS_PER_CHANNEL)) or (g.toInt() shl BITS_PER_CHANNEL) or b.toInt()
     val out = CharArray(HEX_DIGITS)
-    for (i in 0 until HEX_DIGITS) out[HEX_DIGITS - 1 - i] = HEX_CHARS[(packed shr (4 * i)) and 0xf]
+    for (i in 0 until HEX_DIGITS) {
+        val shift = BITS_PER_HEX_DIGIT * i
+        out[HEX_DIGITS - 1 - i] = HEX_CHARS[(packed shr shift) and HEX_DIGIT_MASK]
+    }
     return String(out)
 }
 
 private fun isHexDigit(c: Char) = c in '0'..'9' || c in 'a'..'f' || c in 'A'..'F'
 
-/** Six hex digits, with or without a leading '#'; anything else is null (the field keeps what was typed and sends nothing). */
+/**
+ * Six hex digits, with or without a leading '#'; anything else is null (the field keeps what was
+ * typed and sends nothing).
+ */
 fun parseHex(text: String): Rgb? {
     val digits = text.trim().removePrefix("#")
     if (digits.length != HEX_DIGITS || !digits.all(::isHexDigit)) return null
@@ -81,6 +96,8 @@ fun parseHex(text: String): Rgb? {
 /** One of the R, G, B fields: 0..255 in plain digits, else null. */
 fun parseChannel(text: String): UByte? {
     val digits = text.trim()
-    if (digits.isEmpty() || digits.length > CHANNEL_DIGITS_MAX || !digits.all { it in '0'..'9' }) return null
+    if (digits.isEmpty() || digits.length > CHANNEL_DIGITS_MAX || !digits.all { it in '0'..'9' }) {
+        return null
+    }
     return digits.toInt().takeIf { it <= CHANNEL_MAX }?.toUByte()
 }

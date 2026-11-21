@@ -8,8 +8,16 @@ import org.junit.Test
 
 class HidLayoutTest {
     private val good = listOf(
-        EndpointDesc(Limits.USB_HID_IN_ENDPOINT_ADDRESS, true, Limits.USB_HID_ENDPOINT_PACKET_BYTES),
-        EndpointDesc(Limits.USB_HID_OUT_ENDPOINT_ADDRESS, true, Limits.USB_HID_ENDPOINT_PACKET_BYTES),
+        EndpointDesc(
+            Limits.USB_HID_IN_ENDPOINT_ADDRESS,
+            true,
+            Limits.USB_HID_ENDPOINT_PACKET_BYTES,
+        ),
+        EndpointDesc(
+            Limits.USB_HID_OUT_ENDPOINT_ADDRESS,
+            true,
+            Limits.USB_HID_ENDPOINT_PACKET_BYTES,
+        ),
     )
 
     @Test fun theProvenLayoutPasses() = assertNull(checkHidLayout(true, good))

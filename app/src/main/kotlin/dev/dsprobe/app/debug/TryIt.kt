@@ -10,8 +10,21 @@ import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.MuteLed
 import dev.dsprobe.pad.Rgb
 
-/** What a Try it button fires. MIC, SPEAKER and HEADPHONES go to Android's audio, the rest to OutputController. */
-enum class TryKind { LIGHTBAR, PLAYER_LEDS, MUTE_LED, RUMBLE, TRIGGERS, ALL_OFF, MIC, SPEAKER, HEADPHONES }
+/**
+ * What a Try it button fires. MIC, SPEAKER and HEADPHONES go to Android's audio, the rest to
+ * OutputController.
+ */
+enum class TryKind {
+    LIGHTBAR,
+    PLAYER_LEDS,
+    MUTE_LED,
+    RUMBLE,
+    TRIGGERS,
+    ALL_OFF,
+    MIC,
+    SPEAKER,
+    HEADPHONES,
+}
 
 /** A card's Try it: something to fire, or the stated reason there is nothing to fire. */
 sealed interface TryIt {
@@ -43,7 +56,9 @@ enum class TryChoice(val kind: TryKind, @param:StringRes val labelRes: Int) {
     ALL_OFF(TryKind.ALL_OFF, R.string.try_all_off),
 }
 
-/** The choices of a kind, default first. Audio kinds have none: their cards draw their own controls. */
+/**
+ * The choices of a kind, default first. Audio kinds have none: their cards draw their own controls.
+ */
 fun choicesOf(kind: TryKind): List<TryChoice> = TryChoice.entries.filter { it.kind == kind }
 
 /** The Android mode row that locks a kind of Try it, null where none does. */
@@ -75,23 +90,43 @@ fun fireChoice(choice: TryChoice, outputs: OutputController) {
             outputs.setLightbar(colourOf(choice))
             outputs.flushLightbar()
         }
+
         TryChoice.LEDS_ALL -> outputs.setPlayerLeds(Limits.PLAYER_LED_MASK_MAX)
+
         TryChoice.LEDS_OFF -> outputs.setPlayerLeds(0)
+
         TryChoice.MUTE_PULSE -> outputs.setMuteLed(MuteLed.PULSE)
+
         TryChoice.MUTE_ON -> outputs.setMuteLed(MuteLed.ON)
+
         TryChoice.MUTE_OFF -> outputs.setMuteLed(MuteLed.OFF)
+
         TryChoice.RUMBLE_BOTH -> outputs.setRumble(strength, strength)
+
         TryChoice.RUMBLE_LEFT -> outputs.setRumble(strength, 0)
+
         TryChoice.RUMBLE_RIGHT -> outputs.setRumble(0, strength)
+
         TryChoice.RUMBLE_PATTERN ->
-            outputs.playPattern(PatternId.HEARTBEAT, strength, strength, AppLimits.RUMBLE_PATTERN_DURATION_MS_MIN, AppLimits.RUMBLE_PULSE_RATE_HZ_DEFAULT)
+            outputs.playPattern(
+                PatternId.HEARTBEAT,
+                strength,
+                strength,
+                AppLimits.RUMBLE_PATTERN_DURATION_MS_MIN,
+                AppLimits.RUMBLE_PULSE_RATE_HZ_DEFAULT,
+            )
+
         TryChoice.RUMBLE_STOP -> outputs.setRumble(0, 0)
+
         TryChoice.TRIGGER_R2 -> outputs.pressTrigger(true)
+
         TryChoice.TRIGGER_L2 -> outputs.pressTrigger(false)
+
         TryChoice.TRIGGER_OFF -> {
             outputs.clearTrigger(true)
             outputs.clearTrigger(false)
         }
+
         TryChoice.ALL_OFF -> allOff(outputs)
     }
 }

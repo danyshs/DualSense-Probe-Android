@@ -9,14 +9,31 @@ import org.junit.Test
 private class FakeHost : RouteHost {
     val calls = ArrayList<String>()
     var onResync: () -> Unit = {}
-    override fun startAndroidRoute(pad: FoundPad) { calls.add("start ${pad.inputDeviceIds}") }
-    override fun stopAndroidRoute() { calls.add("stop") }
-    override fun requestUsbPermission(pad: FoundPad) { calls.add("permission") }
-    override fun openDirectUsb(pad: FoundPad) { calls.add("open") }
-    override fun releaseDirectUsb() { calls.add("release") }
-    override fun startTimer(timer: RouteTimer, ms: Long) { calls.add("timer $timer") }
-    override fun cancelTimer(timer: RouteTimer) { calls.add("cancel $timer") }
-    override fun resyncInputs() { calls.add("resync"); onResync() }
+    override fun startAndroidRoute(pad: FoundPad) {
+        calls.add("start ${pad.inputDeviceIds}")
+    }
+    override fun stopAndroidRoute() {
+        calls.add("stop")
+    }
+    override fun requestUsbPermission(pad: FoundPad) {
+        calls.add("permission")
+    }
+    override fun openDirectUsb(pad: FoundPad) {
+        calls.add("open")
+    }
+    override fun releaseDirectUsb() {
+        calls.add("release")
+    }
+    override fun startTimer(timer: RouteTimer, ms: Long) {
+        calls.add("timer $timer")
+    }
+    override fun cancelTimer(timer: RouteTimer) {
+        calls.add("cancel $timer")
+    }
+    override fun resyncInputs() {
+        calls.add("resync")
+        onResync()
+    }
 }
 
 class RouteControllerTest {
@@ -32,7 +49,10 @@ class RouteControllerTest {
         assertEquals(RouteState.NoPad(usbHit), c.state.value)
         c.onFound(FindResult(usbHit, usbPad, false))
         assertEquals(androidMode(usbPad), c.state.value)
-        assertEquals(listOf("timer STRANDED_GRACE", "cancel STRANDED_GRACE", "start [7]"), host.calls)
+        assertEquals(
+            listOf("timer STRANDED_GRACE", "cancel STRANDED_GRACE", "start [7]"),
+            host.calls,
+        )
     }
 
     @Test fun anUnplugReadsAsGone() {
@@ -66,11 +86,21 @@ class RouteControllerTest {
         c.post(RouteEvent.ClaimResult(OpenResult.Opened))
         assertEquals(RouteState.DirectUsb(usbPad), c.state.value)
         c.backToAndroidMode()
-        host.onResync = { c.post(RouteEvent.InputDevicesAppeared(usbPad.copy(inputDeviceIds = listOf(20)))) }
+        host.onResync =
+            { c.post(RouteEvent.InputDevicesAppeared(usbPad.copy(inputDeviceIds = listOf(20)))) }
         c.post(RouteEvent.ReleaseFinished)
         assertEquals(androidMode(usbPad.copy(inputDeviceIds = listOf(20))), c.state.value)
         assertEquals(
-            listOf("stop", "permission", "open", "release", "timer REBIND", "resync", "cancel REBIND", "start [20]"),
+            listOf(
+                "stop",
+                "permission",
+                "open",
+                "release",
+                "timer REBIND",
+                "resync",
+                "cancel REBIND",
+                "start [20]",
+            ),
             host.calls,
         )
     }
@@ -125,7 +155,10 @@ class RouteControllerUsbTest {
         c.switchToDirectUsb()
         c.post(RouteEvent.PermissionResult(false))
         assertEquals(androidMode(usbPad, Notice(NoticeKind.PERMISSION_DENIED)), c.state.value)
-        assertEquals(listOf("stop", "permission", "cancel PERMISSION_WAIT", "start [7]"), host.calls)
+        assertEquals(
+            listOf("stop", "permission", "cancel PERMISSION_WAIT", "start [7]"),
+            host.calls,
+        )
     }
 
     @Test fun aRefusedClaimShowsItsNoticeAndNothingNeedsReleasing() {
@@ -142,7 +175,10 @@ class RouteControllerUsbTest {
         c.switchToDirectUsb()
         c.post(RouteEvent.PermissionResult(true))
         c.post(RouteEvent.ClaimResult(OpenResult.WrongLayout("no endpoint 0x84")))
-        assertEquals(androidMode(usbPad, Notice(NoticeKind.WRONG_LAYOUT, "no endpoint 0x84")), c.state.value)
+        assertEquals(
+            androidMode(usbPad, Notice(NoticeKind.WRONG_LAYOUT, "no endpoint 0x84")),
+            c.state.value,
+        )
     }
 
     @Test fun aReaderErrorReleasesThenWaitsForAndroidToTakeThePadBack() {
@@ -150,7 +186,8 @@ class RouteControllerUsbTest {
         c.post(RouteEvent.ReaderError("read failed"))
         assertEquals(RouteState.Releasing(usbPad, ReleaseReason.READER_ERROR), c.state.value)
         assertEquals(listOf("release"), host.calls)
-        host.onResync = { c.post(RouteEvent.InputDevicesAppeared(usbPad.copy(inputDeviceIds = listOf(30)))) }
+        host.onResync =
+            { c.post(RouteEvent.InputDevicesAppeared(usbPad.copy(inputDeviceIds = listOf(30)))) }
         c.post(RouteEvent.ReleaseFinished)
         assertEquals(androidMode(usbPad.copy(inputDeviceIds = listOf(30))), c.state.value)
     }
@@ -158,7 +195,10 @@ class RouteControllerUsbTest {
     @Test fun anUnplugWhileClaimedReleasesAndEndsWithNoPadAndNoWaitingForAndroid() {
         claimed()
         c.onUsbDetached()
-        assertEquals(RouteState.Releasing(usbPad, ReleaseReason.USB_DETACHED, usbGone = true), c.state.value)
+        assertEquals(
+            RouteState.Releasing(usbPad, ReleaseReason.USB_DETACHED, usbGone = true),
+            c.state.value,
+        )
         c.post(RouteEvent.ReleaseFinished)
         assertEquals(RouteState.NoPad(), c.state.value)
         assertEquals(listOf("release"), host.calls)
@@ -186,7 +226,10 @@ class RouteControllerUsbTest {
         c.switchToDirectUsb()
         c.onStop()
         c.post(RouteEvent.PermissionResult(true))
-        assertEquals(RouteState.AskingUsbPermission(usbPad, grantWaitingForApp = true), c.state.value)
+        assertEquals(
+            RouteState.AskingUsbPermission(usbPad, grantWaitingForApp = true),
+            c.state.value,
+        )
         assertEquals(false, host.calls.contains("open"))
         c.onStart()
         assertEquals(true, host.calls.contains("open"))
@@ -219,7 +262,10 @@ class EventsForTest {
             listOf(RouteEvent.UsbAttached(usbHit), RouteEvent.InputDevicesAppeared(usbPad)),
             eventsFor(FindResult.NONE, both),
         )
-        assertEquals(listOf(RouteEvent.UsbDetached, RouteEvent.InputDevicesGone), eventsFor(both, FindResult.NONE))
+        assertEquals(
+            listOf(RouteEvent.UsbDetached, RouteEvent.InputDevicesGone),
+            eventsFor(both, FindResult.NONE),
+        )
         assertEquals(emptyList<RouteEvent>(), eventsFor(both, both))
     }
 

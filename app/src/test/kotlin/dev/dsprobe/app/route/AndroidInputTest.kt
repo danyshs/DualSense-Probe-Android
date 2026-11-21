@@ -18,11 +18,14 @@ class AndroidInputTest {
     @Test fun everyPadKeyCodeMapsToItsOwnButton() {
         val expected = mapOf(
             KeyEvent.KEYCODE_BUTTON_A to Button.CROSS, KeyEvent.KEYCODE_BUTTON_B to Button.CIRCLE,
-            KeyEvent.KEYCODE_BUTTON_X to Button.SQUARE, KeyEvent.KEYCODE_BUTTON_Y to Button.TRIANGLE,
+            KeyEvent.KEYCODE_BUTTON_X to Button.SQUARE,
+            KeyEvent.KEYCODE_BUTTON_Y to Button.TRIANGLE,
             KeyEvent.KEYCODE_BUTTON_L1 to Button.L1, KeyEvent.KEYCODE_BUTTON_R1 to Button.R1,
             KeyEvent.KEYCODE_BUTTON_L2 to Button.L2, KeyEvent.KEYCODE_BUTTON_R2 to Button.R2,
-            KeyEvent.KEYCODE_BUTTON_THUMBL to Button.L3, KeyEvent.KEYCODE_BUTTON_THUMBR to Button.R3,
-            KeyEvent.KEYCODE_BUTTON_SELECT to Button.CREATE, KeyEvent.KEYCODE_BUTTON_START to Button.OPTIONS,
+            KeyEvent.KEYCODE_BUTTON_THUMBL to Button.L3,
+            KeyEvent.KEYCODE_BUTTON_THUMBR to Button.R3,
+            KeyEvent.KEYCODE_BUTTON_SELECT to Button.CREATE,
+            KeyEvent.KEYCODE_BUTTON_START to Button.OPTIONS,
             KeyEvent.KEYCODE_BUTTON_MODE to Button.PS,
         )
         for ((code, button) in expected) {
@@ -40,28 +43,47 @@ class AndroidInputTest {
     }
 
     @Test fun twoButtonsHeldAtOnceBothStay() {
-        val s = PadState.EMPTY.withKey(KeyEvent.KEYCODE_BUTTON_A, true).withKey(KeyEvent.KEYCODE_BUTTON_B, true)
+        val s = PadState.EMPTY.withKey(
+            KeyEvent.KEYCODE_BUTTON_A,
+            true,
+        ).withKey(KeyEvent.KEYCODE_BUTTON_B, true)
             .withKey(KeyEvent.KEYCODE_BUTTON_A, false)
         assertEquals(setOf(Button.CIRCLE), s.held)
     }
 
     @Test fun axesLandOnTheRightFields() {
         val s = PadState.EMPTY.withAxes(AxisReading(0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0f, 0f))
-        assertEquals(listOf(0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f), listOf(s.leftX, s.leftY, s.rightX, s.rightY, s.l2, s.r2))
+        assertEquals(
+            listOf(0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f),
+            listOf(s.leftX, s.leftY, s.rightX, s.rightY, s.l2, s.r2),
+        )
     }
 
     @Test fun badAxisValuesAreCleanedNotThrown() {
-        val s = PadState.EMPTY.withAxes(AxisReading(Float.NaN, 5f, -5f, Float.POSITIVE_INFINITY, -1f, 2f, 0f, 0f))
-        assertEquals(listOf(0f, 1f, -1f, 1f, 0f, 1f), listOf(s.leftX, s.leftY, s.rightX, s.rightY, s.l2, s.r2))
+        val s = PadState.EMPTY.withAxes(
+            AxisReading(Float.NaN, 5f, -5f, Float.POSITIVE_INFINITY, -1f, 2f, 0f, 0f),
+        )
+        assertEquals(
+            listOf(0f, 1f, -1f, 1f, 0f, 1f),
+            listOf(s.leftX, s.leftY, s.rightX, s.rightY, s.l2, s.r2),
+        )
     }
 
     @Test fun hatMakesAllNineDpadStates() {
         val expected = mapOf(
-            (0f to -1f) to Dpad.N, (1f to -1f) to Dpad.NE, (1f to 0f) to Dpad.E, (1f to 1f) to Dpad.SE,
-            (0f to 1f) to Dpad.S, (-1f to 1f) to Dpad.SW, (-1f to 0f) to Dpad.W, (-1f to -1f) to Dpad.NW,
+            (0f to -1f) to Dpad.N, (1f to -1f) to Dpad.NE, (1f to 0f) to Dpad.E,
+            (1f to 1f) to Dpad.SE,
+            (0f to 1f) to Dpad.S, (-1f to 1f) to Dpad.SW, (-1f to 0f) to Dpad.W,
+            (-1f to -1f) to Dpad.NW,
             (0f to 0f) to Dpad.NONE,
         )
-        for ((hat, dpad) in expected) assertEquals("hat $hat", dpad, PadState.EMPTY.withAxes(NEUTRAL.copy(hatX = hat.first, hatY = hat.second)).dpad)
+        for ((hat, dpad) in expected) {
+            assertEquals(
+                "hat $hat",
+                dpad,
+                PadState.EMPTY.withAxes(NEUTRAL.copy(hatX = hat.first, hatY = hat.second)).dpad,
+            )
+        }
         assertEquals(Dpad.NONE, dpadFromHat(Float.NaN, 0.3f))
     }
 
@@ -91,7 +113,8 @@ class AndroidInputTest {
     @Test fun batteryReadsPercentAndShowsAnythingElseAsAndroidsRawAnswer() {
         assertEquals(Battery.Percent(85), batteryFrom(true, 0.85f, 3))
         assertEquals(Battery.Percent(100), batteryFrom(true, 1.7f, 3))
-        assertEquals(Battery.AndroidRaw(-0.01f, 1), batteryFrom(true, -0.01f, 1)) // what the USB path reported
+        // what the USB path reported
+        assertEquals(Battery.AndroidRaw(-0.01f, 1), batteryFrom(true, -0.01f, 1))
         assertEquals(Battery.AndroidRaw(0.5f, 1), batteryFrom(false, 0.5f, 1))
         val nan = batteryFrom(true, Float.NaN, 1) as Battery.AndroidRaw
         assertTrue(nan.capacity.isNaN())

@@ -13,8 +13,12 @@ data class MotorLevels(val left: Int, val right: Int) {
 /** One stretch of rumble: both strengths held for [durationMs]. A pattern is a list of these. */
 data class RumbleStep(val left: Int, val right: Int, val durationMs: Int) {
     init {
-        require(left in 0..Limits.MOTOR_STRENGTH_MAX && right in 0..Limits.MOTOR_STRENGTH_MAX) { "rumble step strength $left, $right" }
-        require(durationMs in 1..Limits.RUMBLE_DURATION_MS_MAX) { "rumble step duration $durationMs ms" }
+        require(left in 0..Limits.MOTOR_STRENGTH_MAX && right in 0..Limits.MOTOR_STRENGTH_MAX) {
+            "rumble step strength $left, $right"
+        }
+        require(durationMs in 1..Limits.RUMBLE_DURATION_MS_MAX) {
+            "rumble step duration $durationMs ms"
+        }
     }
 }
 

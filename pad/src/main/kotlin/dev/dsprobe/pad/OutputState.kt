@@ -21,7 +21,7 @@ data class TriggerEffect(val bytes: List<UByte>) {
 
         /** Mode 0x01: resistance from [startPos] with [force] (P39). */
         fun resistance(startPos: UByte, force: UByte): TriggerEffect {
-            require(force.toInt() <= Limits.TRIGGER_FORCE_MAX) { "force ${force}" }
+            require(force.toInt() <= Limits.TRIGGER_FORCE_MAX) { "force $force" }
             return TriggerEffect(listOf(MODE_RESISTANCE, startPos, force))
         }
     }
@@ -43,16 +43,23 @@ data class OutputState(
     val micVolume: UByte,
 ) {
     init {
-        require(playerLedMask in 0..Limits.PLAYER_LED_MASK_MAX) { "player LED mask ${playerLedMask}" }
-        require(speakerVolume.toInt() <= Limits.SPEAKER_VOLUME_MAX) { "speaker volume ${speakerVolume}" }
-        require(headphoneVolume.toInt() <= Limits.HEADPHONE_VOLUME_MAX) { "headphone volume ${headphoneVolume}" }
-        require(micVolume.toInt() <= Limits.MIC_VOLUME_MAX) { "mic volume ${micVolume}" }
+        require(playerLedMask in 0..Limits.PLAYER_LED_MASK_MAX) { "player LED mask $playerLedMask" }
+        require(speakerVolume.toInt() <= Limits.SPEAKER_VOLUME_MAX) {
+            "speaker volume $speakerVolume"
+        }
+        require(headphoneVolume.toInt() <= Limits.HEADPHONE_VOLUME_MAX) {
+            "headphone volume $headphoneVolume"
+        }
+        require(micVolume.toInt() <= Limits.MIC_VOLUME_MAX) { "mic volume $micVolume" }
     }
 
     companion object
 }
 
-/** Rumble 0, triggers off, mute LED off, player LEDs off, lightbar 0,0,0 (P45); no audio route, volumes 0. */
+/**
+ * Rumble 0, triggers off, mute LED off, player LEDs off, lightbar 0,0,0 (P45); no audio route,
+ * volumes 0.
+ */
 fun OutputState.Companion.allOff(): OutputState = OutputState(
     rumbleLeft = 0u,
     rumbleRight = 0u,

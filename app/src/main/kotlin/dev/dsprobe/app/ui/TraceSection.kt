@@ -40,24 +40,42 @@ import dev.dsprobe.app.debug.filterByGroups
 import dev.dsprobe.app.debug.rowLines
 import dev.dsprobe.app.ui.theme.NumberStyle
 
-private val HEADLINE_STYLE = TextStyle(fontFamily = NumberStyle.fontFamily, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+private val HEADLINE_STYLE =
+    TextStyle(fontFamily = NumberStyle.fontFamily, fontSize = 14.sp, fontWeight = FontWeight.Bold)
 private val LOCATION_STYLE = TextStyle(fontFamily = NumberStyle.fontFamily, fontSize = 11.sp)
 
-/** The checklist that picks which groups of rows the trace shows. The choice lives in the hub, so it survives leaving the screen. */
+/**
+ * The checklist that picks which groups of rows the trace shows. The choice lives in the hub, so it
+ * survives leaving the screen.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TraceChecklist(checked: Set<String>, onChange: (Set<String>) -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(stringResource(R.string.debug_show_title), style = MaterialTheme.typography.titleSmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            QuietButton({ onChange(TRACE_GROUPS.map { it.id }.toSet()) }) { OneLine(R.string.debug_all) }
+            QuietButton({
+                onChange(TRACE_GROUPS.map { it.id }.toSet())
+            }) { OneLine(R.string.debug_all) }
             QuietButton({ onChange(emptySet()) }) { OneLine(R.string.debug_none) }
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+        ) {
             for (group in TRACE_GROUPS) {
                 val on = group.id in checked
                 Row(
-                    Modifier.heightIn(min = TOUCH_TARGET_DP.dp).clickable { onChange(if (on) checked - group.id else checked + group.id) },
+                    Modifier.heightIn(min = TOUCH_TARGET_DP.dp).clickable {
+                        onChange(
+                            if (on) {
+                                checked -
+                                    group.id
+                            } else {
+                                checked + group.id
+                            },
+                        )
+                    },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(on, null)
@@ -71,9 +89,17 @@ fun TraceChecklist(checked: Set<String>, onChange: (Set<String>) -> Unit) {
 @Composable
 private fun TraceRowView(row: TraceRow, onCopy: (String) -> Unit) {
     val lines = rowLines(row)
-    Column(Modifier.fillMaxWidth().heightIn(min = TOUCH_TARGET_DP.dp).clickable { onCopy(lines.copyText().take(AppLimits.TRACE_COPY_CHARS_MAX)) }.padding(vertical = 3.dp)) {
+    Column(
+        Modifier.fillMaxWidth().heightIn(min = TOUCH_TARGET_DP.dp).clickable {
+            onCopy(lines.copyText().take(AppLimits.TRACE_COPY_CHARS_MAX))
+        }.padding(vertical = 3.dp),
+    ) {
         Text(lines.headline, style = HEADLINE_STYLE)
-        Text(lines.location, style = LOCATION_STYLE, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            lines.location,
+            style = LOCATION_STYLE,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -97,17 +123,44 @@ fun TraceSection(hub: DebugHub, traceVersion: LongState) {
             QuietButton(onClick = {
                 if (!paused) frozen = live
                 paused = !paused
-            }) { Text(stringResource(if (paused) R.string.trace_resume else R.string.trace_pause), maxLines = 1, softWrap = false) }
-            QuietButton(onClick = { hub.trace.clear() }) { Text(stringResource(R.string.trace_clear), maxLines = 1, softWrap = false) }
-            QuietButton(onClick = { hub.save(shown) }) { Text(stringResource(R.string.trace_save), maxLines = 1, softWrap = false) }
+            }) {
+                Text(
+                    stringResource(if (paused) R.string.trace_resume else R.string.trace_pause),
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+            QuietButton(onClick = {
+                hub.trace.clear()
+            }) { Text(stringResource(R.string.trace_clear), maxLines = 1, softWrap = false) }
+            QuietButton(onClick = {
+                hub.save(shown)
+            }) { Text(stringResource(R.string.trace_save), maxLines = 1, softWrap = false) }
         }
-        if (paused) Text(stringResource(R.string.trace_paused), color = MaterialTheme.colorScheme.tertiary)
-        if (copied) Text(stringResource(R.string.trace_copied), color = MaterialTheme.colorScheme.primary)
-        if (shown.isEmpty()) Text(stringResource(R.string.trace_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (paused) {
+            Text(
+                stringResource(R.string.trace_paused),
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+        }
+        if (copied) {
+            Text(
+                stringResource(R.string.trace_copied),
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        if (shown.isEmpty()) {
+            Text(
+                stringResource(R.string.trace_empty),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         LazyColumn(Modifier.fillMaxWidth().height(AppLimits.TRACE_LIST_HEIGHT_DP.dp)) {
             items(shown) { row ->
                 TraceRowView(row) { text ->
-                    context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("trace row", text))
+                    context.getSystemService(
+                        ClipboardManager::class.java,
+                    ).setPrimaryClip(ClipData.newPlainText("trace row", text))
                     copied = true
                 }
             }

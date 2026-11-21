@@ -50,7 +50,13 @@ private fun patternLabelRes(id: PatternId): Int = when (id) {
 @Composable
 private fun PickButton(labelRes: Int, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val label = @Composable { Text(stringResource(labelRes), maxLines = 1, softWrap = false) }
-    if (selected) TonalButton(onClick, enabled = enabled) { label() } else QuietButton(onClick, enabled = enabled) { label() }
+    if (selected) {
+        TonalButton(onClick, enabled = enabled) {
+            label()
+        }
+    } else {
+        QuietButton(onClick, enabled = enabled) { label() }
+    }
 }
 
 @Composable
@@ -58,7 +64,15 @@ private fun ModePicker(enabled: Boolean, current: RumbleMode?, outputs: OutputCo
     // only a route that has modes (Direct USB) reports one
     if (current == null) return
     Text(stringResource(R.string.rumble_mode_label))
-    Segmented(listOf(RumbleMode.COMPATIBLE to R.string.rumble_mode_compatible, RumbleMode.V2 to R.string.rumble_mode_v2), current, enabled, outputs::setRumbleMode)
+    Segmented(
+        listOf(
+            RumbleMode.COMPATIBLE to R.string.rumble_mode_compatible,
+            RumbleMode.V2 to R.string.rumble_mode_v2,
+        ),
+        current,
+        enabled,
+        outputs::setRumbleMode,
+    )
 }
 
 /** What the user has set on the panel; lives only while the Outputs screen is open. */
@@ -88,11 +102,23 @@ private fun Sliders(enabled: Boolean, inputs: RumbleInputs, outputs: OutputContr
     // dragging rumbles at once; letting go stops it but keeps the value as the pattern ceiling
     val release = { outputs.setRumble(0, 0) }
     Text(stringResource(R.string.label_rumble_left))
-    Slider(inputs.left, { inputs.moveLeft(it); live() }, enabled = enabled, valueRange = range, onValueChangeFinished = release)
+    Slider(inputs.left, {
+        inputs.moveLeft(it)
+        live()
+    }, enabled = enabled, valueRange = range, onValueChangeFinished = release)
     Text(stringResource(R.string.label_rumble_right))
-    Slider(inputs.right, { inputs.moveRight(it); live() }, enabled = enabled, valueRange = range, onValueChangeFinished = release)
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Switch(inputs.linked, { inputs.linked = it; if (it) inputs.moveRight(inputs.left) }, enabled = enabled)
+    Slider(inputs.right, {
+        inputs.moveRight(it)
+        live()
+    }, enabled = enabled, valueRange = range, onValueChangeFinished = release)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Switch(inputs.linked, {
+            inputs.linked = it
+            if (it) inputs.moveRight(inputs.left)
+        }, enabled = enabled)
         Text(stringResource(R.string.rumble_link), maxLines = 1, softWrap = false)
     }
 }
@@ -100,24 +126,62 @@ private fun Sliders(enabled: Boolean, inputs: RumbleInputs, outputs: OutputContr
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Patterns(enabled: Boolean, inputs: RumbleInputs, outputs: OutputController) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        for (id in PatternId.entries) PickButton(patternLabelRes(id), inputs.pattern == id, enabled) { inputs.pattern = id }
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        for (id in PatternId.entries) {
+            PickButton(patternLabelRes(id), inputs.pattern == id, enabled) {
+                inputs.pattern =
+                    id
+            }
+        }
     }
     val rateHz = inputs.rateHz.roundToInt()
     Text(stringResource(R.string.rumble_pulse_rate, rateHz), maxLines = 1, softWrap = false)
     Slider(
-        inputs.rateHz, { inputs.rateHz = it }, enabled = enabled && inputs.pattern == PatternId.PULSE,
-        valueRange = AppLimits.RUMBLE_PULSE_RATE_HZ_MIN.toFloat()..AppLimits.RUMBLE_PULSE_RATE_HZ_MAX.toFloat(),
+        inputs.rateHz,
+        { inputs.rateHz = it },
+        enabled =
+        enabled && inputs.pattern == PatternId.PULSE,
+        valueRange =
+        AppLimits.RUMBLE_PULSE_RATE_HZ_MIN.toFloat()..AppLimits.RUMBLE_PULSE_RATE_HZ_MAX.toFloat(),
         steps = AppLimits.RUMBLE_PULSE_RATE_HZ_MAX - AppLimits.RUMBLE_PULSE_RATE_HZ_MIN - 1,
     )
-    Text(stringResource(R.string.rumble_duration, inputs.durationS.roundToInt()), maxLines = 1, softWrap = false)
-    Slider(inputs.durationS, { inputs.durationS = it }, enabled = enabled, valueRange = DURATION_S_MIN..DURATION_S_MAX, steps = DURATION_SLIDER_STEPS)
+    Text(
+        stringResource(R.string.rumble_duration, inputs.durationS.roundToInt()),
+        maxLines = 1,
+        softWrap = false,
+    )
+    Slider(
+        inputs.durationS,
+        { inputs.durationS = it },
+        enabled = enabled,
+        valueRange =
+        DURATION_S_MIN..DURATION_S_MAX,
+        steps = DURATION_SLIDER_STEPS,
+    )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         val play = {
-            outputs.playPattern(inputs.pattern, inputs.left.roundToInt(), inputs.right.roundToInt(), (inputs.durationS * MS_PER_SECOND).roundToInt(), rateHz)
+            outputs.playPattern(
+                inputs.pattern,
+                inputs.left.roundToInt(),
+                inputs.right.roundToInt(),
+                (
+                    inputs.durationS *
+                        MS_PER_SECOND
+                    ).roundToInt(),
+                rateHz,
+            )
         }
-        TonalButton(play, enabled = enabled) { Text(stringResource(R.string.rumble_play), maxLines = 1, softWrap = false) }
-        QuietButton({ outputs.setRumble(0, 0) }, enabled = enabled) { Text(stringResource(R.string.rumble_stop), maxLines = 1, softWrap = false) }
+        TonalButton(play, enabled = enabled) {
+            Text(stringResource(R.string.rumble_play), maxLines = 1, softWrap = false)
+        }
+        QuietButton({
+            outputs.setRumble(0, 0)
+        }, enabled = enabled) {
+            Text(stringResource(R.string.rumble_stop), maxLines = 1, softWrap = false)
+        }
     }
 }
 
@@ -130,10 +194,20 @@ fun RumbleSection(enabled: Boolean, shown: OutputsShown, outputs: OutputControll
         Sliders(enabled, inputs, outputs)
         Patterns(enabled, inputs, outputs)
         Text(
-            stringResource(R.string.rumble_status, shown.rumbleLeft, shown.rumbleRight, shown.rumbleRemainingMs / MS_PER_SECOND),
-            style = NumberStyle, maxLines = 1, softWrap = false,
+            stringResource(
+                R.string.rumble_status,
+                shown.rumbleLeft,
+                shown.rumbleRight,
+                shown.rumbleRemainingMs / MS_PER_SECOND,
+            ),
+            style = NumberStyle,
+            maxLines = 1,
+            softWrap = false,
         )
         RumbleTraces(shown.rumbleTrace)
-        Text(stringResource(R.string.rumble_hd_haptics), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            stringResource(R.string.rumble_hd_haptics),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

@@ -8,13 +8,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.sp
 
-/** The hues of the plotted axes. Chart data, not UI roles: every other colour comes from MaterialTheme.colorScheme. */
-object ChartColors {
-    val AxisX = Color(0xFFFF6B6B)
-    val AxisY = Color(0xFF6BFF9E)
-    val AxisZ = Color(0xFF6BA8FF)
-}
-
 /** Numbers in a fixed-width face so they don't jitter as they change. The colour is inherited. */
 val NumberStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp)
 

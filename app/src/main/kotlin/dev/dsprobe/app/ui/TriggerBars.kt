@@ -28,16 +28,29 @@ fun TriggerBar(label: String, value: Float, peak: Peak, modifier: Modifier = Mod
     val c = drawColors()
     val counts = (value * TRIGGER_COUNTS_MAX).roundToInt()
     val percent = (value * PERCENT_MAX).roundToInt()
-    Column(modifier.width(TRIGGER_COLUMN_DP.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(
+        modifier.width(TRIGGER_COLUMN_DP.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         Text(label, color = c.textDim)
         Canvas(Modifier.width(32.dp).height(140.dp)) {
             drawRect(c.surfaceHigh, Offset.Zero, size)
             val fill = size.height * value
             drawRect(c.accent, Offset(0f, size.height - fill), Size(size.width, fill))
             val markerY = size.height * (1f - peak.value)
-            drawRect(c.text, Offset(0f, markerY.coerceIn(0f, size.height - MARKER_PX)), Size(size.width, MARKER_PX))
+            drawRect(
+                c.text,
+                Offset(0f, markerY.coerceIn(0f, size.height - MARKER_PX)),
+                Size(size.width, MARKER_PX),
+            )
         }
         // fixed 8 chars, one line: the value can never reflow the layout
-        Text(String.format(Locale.ROOT, "%3d %3d%%", counts, percent), style = NumberStyle, maxLines = 1, softWrap = false)
+        Text(
+            String.format(Locale.ROOT, "%3d %3d%%", counts, percent),
+            style = NumberStyle,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }

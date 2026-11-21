@@ -6,11 +6,20 @@ import dev.dsprobe.app.pad.SeenUsb
 enum class Route { ANDROID, DIRECT_USB }
 
 /** What a failed or abandoned switch to Direct USB shows on the Android mode screen. */
-enum class NoticeKind { PERMISSION_DENIED, PERMISSION_TIMED_OUT, NO_PERMISSION, WRONG_LAYOUT, CLAIM_FAILED }
+enum class NoticeKind {
+    PERMISSION_DENIED,
+    PERMISSION_TIMED_OUT,
+    NO_PERMISSION,
+    WRONG_LAYOUT,
+    CLAIM_FAILED,
+}
 
 data class Notice(val kind: NoticeKind, val detail: String = "")
 
-/** What claiming the pad's HID interface gave back. The claim itself is built in the Direct USB step. */
+/**
+ * What claiming the pad's HID interface gave back. The claim itself is built in the Direct USB
+ * step.
+ */
 sealed interface OpenResult {
     data object Opened : OpenResult
     data object NoPermission : OpenResult
@@ -22,13 +31,20 @@ enum class ReleaseReason { BACK, APP_STOPPED, USB_DETACHED, READER_ERROR }
 
 /** The eight states of the route state machine. */
 sealed interface RouteState {
-    /** [usb] is set while UsbManager lists a pad and the grace period for its input devices runs. */
+    /**
+     * [usb] is set while UsbManager lists a pad and the grace period for its input devices runs.
+     */
     data class NoPad(val usb: SeenUsb? = null) : RouteState
     data object TooMany : RouteState
     data class AndroidMode(val pad: FoundPad, val notice: Notice? = null) : RouteState
-    data class AskingUsbPermission(val pad: FoundPad, val grantWaitingForApp: Boolean = false) : RouteState
+    data class AskingUsbPermission(val pad: FoundPad, val grantWaitingForApp: Boolean = false) :
+        RouteState
     data class DirectUsb(val pad: FoundPad, val secondPadIgnored: Boolean = false) : RouteState
-    data class Releasing(val pad: FoundPad, val reason: ReleaseReason, val usbGone: Boolean = false) : RouteState
+    data class Releasing(
+        val pad: FoundPad,
+        val reason: ReleaseReason,
+        val usbGone: Boolean = false,
+    ) : RouteState
     data class Stranded(val usb: SeenUsb) : RouteState
     data class WaitingForAndroid(val pad: FoundPad) : RouteState
 }
@@ -64,12 +80,20 @@ sealed interface RouteEffect {
     data object ReleaseDirectUsb : RouteEffect
     data class StartTimer(val timer: RouteTimer, val ms: Long) : RouteEffect
     data class CancelTimer(val timer: RouteTimer) : RouteEffect
-    /** Re-read what Android lists now and report it, in case it came back while an event was being ignored. */
+
+    /**
+     * Re-read what Android lists now and report it, in case it came back while an event was being
+     * ignored.
+     */
     data object ResyncInputs : RouteEffect
 }
 
 /** [ignoredReason] is set when the event changed nothing; the controller logs it. */
-data class RouteStep(val state: RouteState, val effects: List<RouteEffect>, val ignoredReason: String? = null)
+data class RouteStep(
+    val state: RouteState,
+    val effects: List<RouteEffect>,
+    val ignoredReason: String? = null,
+)
 
 /** Everything the controller calls out to. Implemented by the app's session; faked in tests. */
 interface RouteHost {

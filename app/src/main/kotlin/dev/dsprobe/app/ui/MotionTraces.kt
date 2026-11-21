@@ -23,7 +23,12 @@ import dev.dsprobe.app.ui.theme.NumberStyle
 private const val GYRO_SCALE_FLOOR = 1f // rad/s
 private const val ACCEL_SCALE_FLOOR = 4f // m/s2
 
-private fun DrawScope.trace(history: List<Motion>, scale: Float, color: Color, pick: (Motion) -> Float) {
+private fun DrawScope.trace(
+    history: List<Motion>,
+    scale: Float,
+    color: Color,
+    pick: (Motion) -> Float,
+) {
     if (history.size < 2) return
     val step = size.width / (AppLimits.MOTION_TRACE_SAMPLES_MAX - 1)
     var prev: Offset? = null
@@ -36,7 +41,12 @@ private fun DrawScope.trace(history: List<Motion>, scale: Float, color: Color, p
 
 /** Three axes of one sensor as rolling lines, newest at the right, auto-scaled. */
 @Composable
-fun MotionTrace(title: String, history: List<Motion>, scaleFloor: Float, modifier: Modifier = Modifier) {
+fun MotionTrace(
+    title: String,
+    history: List<Motion>,
+    scaleFloor: Float,
+    modifier: Modifier = Modifier,
+) {
     val c = drawColors()
     val scale = plotScale(history, scaleFloor)
     val latest = history.lastOrNull()
@@ -49,8 +59,20 @@ fun MotionTrace(title: String, history: List<Motion>, scaleFloor: Float, modifie
             trace(history, scale, ChartColors.AxisZ) { it.z }
         }
         if (latest != null) {
-            Text(stringResource(R.string.motion_values, signed(latest.x), signed(latest.y), signed(latest.z)), style = NumberStyle, maxLines = 1, softWrap = false)
-            if (latest.unit == MotionUnit.RAW_COUNTS) Text(stringResource(R.string.label_motion_raw), color = c.textDim)
+            Text(
+                stringResource(
+                    R.string.motion_values,
+                    signed(latest.x),
+                    signed(latest.y),
+                    signed(latest.z),
+                ),
+                style = NumberStyle,
+                maxLines = 1,
+                softWrap = false,
+            )
+            if (latest.unit == MotionUnit.RAW_COUNTS) {
+                Text(stringResource(R.string.label_motion_raw), color = c.textDim)
+            }
         } else {
             Text(stringResource(R.string.motion_none), color = c.textDim)
         }

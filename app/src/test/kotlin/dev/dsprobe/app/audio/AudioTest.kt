@@ -17,7 +17,16 @@ class AudioTest {
         assertEquals(48_000 * 2, tone.size)
         val peak = tone.maxOf { kotlin.math.abs(it.toInt()) }
         assertTrue("peak $peak", peak in 10_000..(0.4f * Short.MAX_VALUE).toInt())
-        for (i in 0 until tone.size step 2) assertEquals("both channels carry the same sample", tone[i], tone[i + 1])
+        for (i in 0 until tone.size step 2) {
+            assertEquals(
+                "both channels carry the same sample",
+                tone[i],
+                tone[
+                    i +
+                        1,
+                ],
+            )
+        }
     }
 
     @Test fun theHeadphonesToneIsQuieterThanTheSpeakerTone() {
@@ -26,7 +35,8 @@ class AudioTest {
         assertTrue(quiet < loud)
     }
 
-    @Test(expected = IllegalArgumentException::class) fun aFrequencyAboveHalfTheRateIsRefused() {
+    @Test(expected = IllegalArgumentException::class)
+    fun aFrequencyAboveHalfTheRateIsRefused() {
         sineTone(48_000, 30_000, 100, 0.1f)
     }
 }

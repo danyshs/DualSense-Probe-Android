@@ -19,24 +19,51 @@ import dev.dsprobe.app.ui.theme.ChartColors
 import dev.dsprobe.app.ui.theme.NumberStyle
 import kotlin.math.sqrt
 
-/** A stick circle: moving dot, fading trail, a rim that lights at full deflection, and the values. */
+/**
+ * A stick circle: moving dot, fading trail, a rim that lights at full deflection, and the values.
+ */
 @Composable
-fun StickView(label: String, x: Float, y: Float, trail: List<TrailPoint>, nowMs: Long, modifier: Modifier = Modifier) {
+fun StickView(
+    label: String,
+    x: Float,
+    y: Float,
+    trail: List<TrailPoint>,
+    nowMs: Long,
+    modifier: Modifier = Modifier,
+) {
     val c = drawColors()
     val atRim = sqrt(x * x + y * y) >= AppLimits.STICK_FULL_DEFLECTION_RATIO_MIN
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(
+        modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         Text(label, color = c.textDim)
         Canvas(Modifier.fillMaxWidth().aspectRatio(1f)) {
             val radius = size.minDimension / 2f - RIM_PX
             drawCircle(c.surfaceHigh, radius, center)
-            drawCircle(if (atRim) c.accent else c.outline, radius, center, style = Stroke(width = RIM_PX))
+            drawCircle(
+                if (atRim) c.accent else c.outline,
+                radius,
+                center,
+                style = Stroke(width = RIM_PX),
+            )
             for (p in trail) {
                 val age = (nowMs - p.atMs).toFloat() / AppLimits.STICK_TRAIL_MS
-                drawCircle(c.accent.copy(alpha = (1f - age).coerceIn(0f, 1f) * TRAIL_ALPHA_MAX), DOT_PX * TRAIL_DOT_RATIO, center + Offset(p.x, p.y) * radius)
+                drawCircle(
+                    c.accent.copy(alpha = (1f - age).coerceIn(0f, 1f) * TRAIL_ALPHA_MAX),
+                    DOT_PX * TRAIL_DOT_RATIO,
+                    center + Offset(p.x, p.y) * radius,
+                )
             }
             drawCircle(c.accent, DOT_PX, center + Offset(x, y) * radius)
         }
-        Text(stringResource(R.string.stick_values, signed(x), signed(y)), style = NumberStyle, maxLines = 1, softWrap = false)
+        Text(
+            stringResource(R.string.stick_values, signed(x), signed(y)),
+            style = NumberStyle,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 

@@ -33,13 +33,16 @@ data class FoundPad(
 ) {
     init {
         require(inputDeviceIds.isNotEmpty()) { "a pad with no input devices" }
-        require(transport == Transport.USB || (usbDevice == null && !alsoPairedBluetooth)) { "bluetooth pad with USB data" }
+        require(transport == Transport.USB || (usbDevice == null && !alsoPairedBluetooth)) {
+            "bluetooth pad with USB data"
+        }
     }
 }
 
 /**
  * Both sources at once. [usb] is set when UsbManager lists a pad, [inputPad] when Android has
- * input devices for one. A second pad empties both and sets [tooMany], so the machine never sees two.
+ * input devices for one. A second pad empties both and sets [tooMany], so the machine never sees
+ * two.
  */
 data class FindResult(val usb: SeenUsb?, val inputPad: FoundPad?, val tooMany: Boolean) {
     companion object {
@@ -47,8 +50,8 @@ data class FindResult(val usb: SeenUsb?, val inputPad: FoundPad?, val tooMany: B
     }
 }
 
-fun isPadProduct(vendorId: Int, productId: Int): Boolean =
-    vendorId == VENDOR_SONY && (productId == PRODUCT_DUALSENSE || productId == PRODUCT_DUALSENSE_EDGE)
+fun isPadProduct(vendorId: Int, productId: Int): Boolean = vendorId == VENDOR_SONY &&
+    (productId == PRODUCT_DUALSENSE || productId == PRODUCT_DUALSENSE_EDGE)
 
 /**
  * The transport rule: USB if UsbManager lists the pad, otherwise Bluetooth. One USB pad plus up to
@@ -58,22 +61,49 @@ fun isPadProduct(vendorId: Int, productId: Int): Boolean =
 fun classify(inputs: List<SeenInput>, usbs: List<SeenUsb>): FindResult {
     val padInputs = inputs.filter { isPadProduct(it.vendorId, it.productId) }
     val padUsbs = usbs.filter { isPadProduct(it.vendorId, it.productId) }
-    val tooMany = padUsbs.size >= 2 || (padUsbs.size == 1 && padInputs.size > 2) || (padUsbs.isEmpty() && padInputs.size >= 2)
-    if (tooMany) return FindResult(null, null, true)
+    val tooMany =
+        padUsbs.size >= 2 || (padUsbs.size == 1 && padInputs.size > 2) ||
+            (padUsbs.isEmpty() && padInputs.size >= 2)
     val usb = padUsbs.firstOrNull()
-    if (usb != null) {
-        val pad = if (padInputs.isEmpty()) null else
-            FoundPad(usb.device, padInputs.map { it.id }, usb.productId, Transport.USB, alsoPairedBluetooth = padInputs.size == 2)
-        return FindResult(usb, pad, false)
+    val only = padInputs.firstOrNull()
+    return when {
+        tooMany -> FindResult(null, null, true)
+
+        usb != null -> FindResult(usb, usbPad(usb, padInputs), false)
+
+        only != null ->
+            FindResult(
+                null,
+                FoundPad(null, listOf(only.id), only.productId, Transport.BLUETOOTH),
+                false,
+            )
+
+        else -> FindResult.NONE
     }
-    val only = padInputs.firstOrNull() ?: return FindResult.NONE
-    return FindResult(null, FoundPad(null, listOf(only.id), only.productId, Transport.BLUETOOTH), false)
 }
 
-/** Watches Android's input devices and the USB attach and detach broadcasts; every change calls [onChange]. Main thread only. */
+/** The pad behind [usb], once Android also lists it as an input device. */
+private fun usbPad(usb: SeenUsb, padInputs: List<SeenInput>): FoundPad? = if (padInputs.isEmpty()) {
+    null
+} else {
+    FoundPad(
+        usb.device,
+        padInputs.map { it.id },
+        usb.productId,
+        Transport.USB,
+        alsoPairedBluetooth = padInputs.size == 2,
+    )
+}
+
+/**
+ * Watches Android's input devices and the USB attach and detach broadcasts; every change calls
+ * [onChange]. Main thread only.
+ */
 class PadFinder(private val context: Context) {
-    private val inputManager: InputManager = checkNotNull(context.getSystemService(InputManager::class.java)) { "no InputManager" }
-    private val usbManager: UsbManager = checkNotNull(context.getSystemService(UsbManager::class.java)) { "no UsbManager" }
+    private val inputManager: InputManager =
+        checkNotNull(context.getSystemService(InputManager::class.java)) { "no InputManager" }
+    private val usbManager: UsbManager =
+        checkNotNull(context.getSystemService(UsbManager::class.java)) { "no UsbManager" }
     private var onChange: (() -> Unit)? = null
 
     private val inputListener = object : InputManager.InputDeviceListener {
@@ -107,7 +137,12 @@ class PadFinder(private val context: Context) {
             addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
             addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
         }
-        ContextCompat.registerReceiver(context, usbReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(
+            context,
+            usbReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     fun stop() {
