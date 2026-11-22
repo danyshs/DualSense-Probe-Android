@@ -12,7 +12,7 @@ private fun crossRow() =
 private fun tourAtCross(): EndpointTour {
     val tour = EndpointTour(buildEndpointCards())
     tour.start()
-    while (tour.current?.id != "in.button.cross") tour.next()
+    while (tour.current?.id != "in.buttons.face") tour.next()
     return tour
 }
 
@@ -22,13 +22,13 @@ class EndpointTourTest {
         val at = tour.index
         tour.observe(listOf(crossRow()), null)
         assertEquals(at, tour.index)
-        assertEquals("in.button.cross", tour.current?.id)
+        assertEquals("in.buttons.face", tour.current?.id)
         assertEquals("Cross  pressed", tour.seenNow.single().headline)
     }
 
     @Test fun rowsOfOtherControlsAreNotKeptUnderTheCard() {
         val tour = tourAtCross()
-        tour.observe(listOf(TraceRow(0L, Route.DIRECT_USB, "in.button.circle", "x")), null)
+        tour.observe(listOf(TraceRow(0L, Route.DIRECT_USB, "in.button.l1", "x")), null)
         assertTrue(tour.seenNow.isEmpty())
     }
 
@@ -65,7 +65,7 @@ class EndpointTourTest {
         assertTrue(
             lines.toString(),
             lines.any {
-                it.startsWith("endpoint-seen id=in.button.cross Cross  pressed")
+                it.startsWith("endpoint-seen id=in.buttons.face Cross  pressed")
             },
         )
     }

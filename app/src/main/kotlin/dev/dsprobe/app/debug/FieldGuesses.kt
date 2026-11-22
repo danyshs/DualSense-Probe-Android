@@ -3,264 +3,131 @@ package dev.dsprobe.app.debug
 import dev.dsprobe.pad.FieldSource
 import dev.dsprobe.pad.INPUT_MAP
 
-private fun bitOf(mask: Int): Int = Integer.numberOfTrailingZeros(mask)
+private const val HELD_LINE = "1 while held, 0 when let go."
+private const val FLAG_LINE =
+    "A yes or no flag, separate from the travel value; FACTS does not say at what point it flips."
 
-private fun heldEnds(src: FieldSource): String {
-    val bit = bitOf(checkNotNull(src.bitMask) { src.id })
-    return "Bit $bit of byte ${src.byteOffset} reads 1 while it is held and 0 when it is let go."
-}
-
-private class ButtonText(val title: String, val what: String, val move: String)
-
-// P13, P14, P15: the plain names; the bit position comes from INPUT_MAP
-private val BUTTON_TEXT: Map<String, ButtonText> = mapOf(
-    "square" to
-        ButtonText(
-            "Square button",
-            "The Square face button, the left one of the four.",
-            "Press Square.",
-        ),
-    "cross" to
-        ButtonText(
-            "Cross button",
-            "The Cross face button, the bottom one of the four.",
-            "Press Cross.",
-        ),
-    "circle" to
-        ButtonText(
-            "Circle button",
-            "The Circle face button, the right one of the four.",
-            "Press Circle.",
-        ),
-    "triangle" to
-        ButtonText(
-            "Triangle button",
-            "The Triangle face button, the top one of the four.",
-            "Press Triangle.",
-        ),
-    "l1" to ButtonText("L1 shoulder button", "The left shoulder button, L1.", "Press L1."),
-    "r1" to ButtonText("R1 shoulder button", "The right shoulder button, R1.", "Press R1."),
-    "l2" to ButtonText(
-        "L2, click flag",
-        "A yes or no flag for the left trigger, separate from its 0-255 travel value.",
-        "Squeeze L2 slowly and watch where the flag flips; FACTS does not say at what point.",
-    ),
-    "r2" to ButtonText(
-        "R2, click flag",
-        "A yes or no flag for the right trigger, separate from its 0-255 travel value.",
-        "Squeeze R2 slowly and watch where the flag flips; FACTS does not say at what point.",
-    ),
-    "create" to
-        ButtonText(
-            "Create button",
-            "The small Create button left of the touchpad.",
-            "Press Create.",
-        ),
-    "options" to
-        ButtonText(
-            "Options button",
-            "The small Options button right of the touchpad.",
-            "Press Options.",
-        ),
-    "l3" to
-        ButtonText(
-            "L3, left stick click",
-            "The left stick pressed straight down.",
-            "Push the left stick down like a button.",
-        ),
-    "r3" to
-        ButtonText(
-            "R3, right stick click",
-            "The right stick pressed straight down.",
-            "Push the right stick down like a button.",
-        ),
-    "ps" to
-        ButtonText(
-            "PS button",
-            "The PlayStation logo button in the middle.",
-            "Press the PS button.",
-        ),
-    "touchpad_click" to
-        ButtonText(
-            "Touchpad click",
-            "The whole touchpad pressed down like a button.",
-            "Press the touchpad down until it clicks.",
-        ),
-    "mute" to ButtonText("Mute button", "The microphone Mute button.", "Press Mute."),
+// P13, P14, P15: the plain names; where each bit lives comes from INPUT_MAP
+private val BUTTON_LABELS: Map<String, String> = mapOf(
+    "square" to "Square",
+    "cross" to "Cross",
+    "circle" to "Circle",
+    "triangle" to "Triangle",
+    "l1" to "L1",
+    "r1" to "R1",
+    "l2" to "L2 click flag",
+    "r2" to "R2 click flag",
+    "create" to "Create",
+    "options" to "Options",
+    "l3" to "L3 stick click",
+    "r3" to "R3 stick click",
+    "ps" to "PS",
+    "touchpad_click" to "Touchpad click",
+    "mute" to "Mute",
 )
 
 private fun buttonGuess(src: FieldSource): FieldGuess {
-    val t =
-        checkNotNull(BUTTON_TEXT[src.id.removePrefix("in.button.")]) {
-            "no button text for ${src.id}"
-        }
-    return FieldGuess(t.title, t.what, heldEnds(src), t.move)
+    val name = src.id.removePrefix("in.button.")
+    val label = checkNotNull(BUTTON_LABELS[name]) { "no button label for ${src.id}" }
+    return FieldGuess(label, if (name == "l2" || name == "r2") FLAG_LINE else HELD_LINE)
 }
 
-private fun stickGuess(side: String, axis: String): FieldGuess {
-    val lower = side.lowercase()
-    if (axis == "x") {
-        return FieldGuess(
-            "$side stick, left↔right",
-            "How far the $lower stick is pushed sideways.",
-            "0 = full left, 128 = centre, 255 = full right.",
-            "Push the $lower stick sideways.",
-            "-1.0 = full left, 0.0 = centre, +1.0 = full right.",
-        )
-    }
-    return FieldGuess(
-        "$side stick, up↕down",
-        "How far the $lower stick is pushed up or down.",
+private val STICK_GUESSES: Map<String, FieldGuess> = mapOf(
+    "x" to FieldGuess(
+        "x, left↔right",
+        "0 = full left, 128 = centre, 255 = full right.",
+        "-1.0 = full left, 0.0 = centre, +1.0 = full right.",
+    ),
+    "y" to FieldGuess(
+        "y, up↕down",
         "0 and 255 are the two ends and 128 is centre. FACTS does not say which end is up: the " +
             "live value shows it.",
-        "Push the $lower stick up, then down.",
         "-1.0 and +1.0 are the two ends and 0.0 is centre. FACTS does not say which end is up: " +
             "the live value shows it.",
-    )
-}
+    ),
+)
 
-private fun triggerGuess(side: String): FieldGuess = FieldGuess(
-    "$side trigger, travel",
-    "How far the $side trigger is squeezed.",
+private val TRIGGER_GUESS = FieldGuess(
+    "travel",
     "0 = untouched, 255 = squeezed all the way.",
-    "Squeeze $side slowly from rest to the end.",
     "0.0 = untouched, 1.0 = squeezed all the way.",
 )
 
-private fun motionGuess(isGyro: Boolean, axis: String): FieldGuess {
-    val name = if (isGyro) "Gyroscope" else "Accelerometer"
-    val what = if (isGyro) {
-        "How fast the pad turns around the $axis axis of the gyroscope."
-    } else {
-        "The push or gravity along the $axis axis of the accelerometer."
-    }
-    val still = if (isGyro) {
-        "A signed 16-bit number, 0 = not turning."
-    } else {
-        "A signed 16-bit number; a pad lying still shows gravity on one axis."
-    }
-    val ends = "$still Which way the $axis axis points, its sign and its scale are untested: " +
-        "your answer settles them."
-    val move = if (isGyro) {
-        "Turn the pad slowly in the air, one direction at a time, and see whether $axis moves."
-    } else {
-        "Tip the pad so each side points down in turn and see whether $axis moves."
-    }
-    return FieldGuess("$name, ${axis.uppercase()} axis", what, ends, move)
-}
+private val MOTION_SHAPE: Map<String, String> = mapOf(
+    "x" to "A signed number, drawn as a left↔right bar.",
+    "y" to "A signed number, drawn as an up↕down bar.",
+    "z" to "A signed number, drawn as an up↕down bar.",
+)
 
-private fun touchGuess(point: Int, field: String): FieldGuess {
-    val n = point + 1
-    val who = if (point == 0) "the first finger" else "the second finger"
-    val second = if (point == 0) "" else " Keep a first finger down while you do it."
-    return when (field) {
-        "id" -> FieldGuess(
-            "Finger $n, contact id",
-            "A number that names $who on the touchpad.",
-            "7 bits, 0-127.",
-            "Touch with $who, lift it, touch again and see whether the id changes.$second",
-        )
+private fun motionGuess(axis: String): FieldGuess = FieldGuess(
+    "$axis axis",
+    checkNotNull(MOTION_SHAPE[axis]) { "no motion axis $axis" },
+)
 
-        "active" -> FieldGuess(
-            "Finger $n, touching flag",
-            "Whether $who is on the pad.",
-            "Bit 7 reads 1 when NOT touching and 0 while a finger is down.",
-            "Put $who on the pad, then lift it.$second",
-        )
-
-        "x.low8" -> FieldGuess(
-            "Finger $n, x position (low part)",
-            "The low 8 bits of where $who is, left to right.",
-            "Together with the high part, x runs 0-1919.",
-            "Slide $who sideways across the pad.$second",
-        )
-
-        "x.high4" -> FieldGuess(
-            "Finger $n, x position (high part)",
-            "The top 4 bits of where $who is, left to right.",
-            "Reads 0-15; it changes only on big sideways moves.",
-            "Slide $who from one side edge to the other.$second",
-        )
-
-        "y.low4" -> FieldGuess(
-            "Finger $n, y position (low part)",
-            "The low 4 bits of where $who is, top to bottom.",
-            "Reads 0-15; it changes on small up and down moves.",
-            "Slide $who a little up and down.$second",
-        )
-
-        "y.high8" -> FieldGuess(
-            "Finger $n, y position (high part)",
-            "The top 8 bits of where $who is, top to bottom.",
-            "Together with the low part, y runs 0-1079.",
-            "Slide $who from the top edge to the bottom edge.$second",
-        )
-
-        else -> error("no touch text for $field")
-    }
-}
+// P17: one line per part of a finger, the same for both fingers
+private val TOUCH_GUESSES: Map<String, FieldGuess> = mapOf(
+    "id" to FieldGuess("contact id", "7 bits, 0-127; it may change when you lift and touch again."),
+    "active" to FieldGuess(
+        "touching flag",
+        "Bit 7 reads 1 when NOT touching and 0 while a finger is down.",
+    ),
+    "x.low8" to FieldGuess(
+        "x, low part",
+        "The low 8 bits of left to right; with the high part, x runs 0-1919.",
+    ),
+    "x.high4" to FieldGuess(
+        "x, high part",
+        "The top 4 bits of left to right, 0-15; it changes only on big sideways moves.",
+    ),
+    "y.low4" to FieldGuess(
+        "y, low part",
+        "The low 4 bits of top to bottom, 0-15; it changes on small up and down moves.",
+    ),
+    "y.high8" to FieldGuess(
+        "y, high part",
+        "The top 8 bits of top to bottom; with the low part, y runs 0-1079.",
+    ),
+)
 
 private val OTHER_GUESSES: Map<String, FieldGuess> = mapOf(
-    "in.sequence" to FieldGuess(
-        "Report counter",
-        "A counter that goes up by one with every report the pad sends.",
-        "It wraps from 255 back to 0.",
-        "Nothing to press: it counts by itself while Direct USB reports arrive.",
-    ),
+    "in.sequence" to FieldGuess("counter", "It wraps from 255 back to 0."),
     "in.dpad" to FieldGuess(
-        "D-pad direction",
-        "The D-pad as one number.",
+        "direction",
         "0 = up, then clockwise: 1 up-right, 2 right, 3 down-right, 4 down, 5 down-left, 6 left, " +
             "7 up-left; 8 = nothing pressed.",
-        "Press each D-pad direction, then each corner.",
     ),
     "in.battery.level" to FieldGuess(
-        "Battery level",
-        "The battery level as a 4-bit number.",
+        "level",
         "Readings of 8 and 9 were seen; how that maps to a percentage is untested: your answer " +
             "settles it.",
-        "Nothing to press: it drifts as the battery drains or charges, so just watch it.",
     ),
     "in.battery.charging" to FieldGuess(
-        "Battery charging state",
-        "The charging state as a 4-bit number.",
+        "charging state",
         "A reading of 2 was seen on USB; what each value means is untested: your answer settles " +
             "it.",
-        "It changes when charging starts or stops, which a USB cable makes hard to cause, so " +
-            "just watch it.",
     ),
-    "in.headphones_in" to FieldGuess(
-        "Headphones plugged in",
-        "Whether something is in the pad's headphone jack.",
-        "1 = plugged in, 0 = nothing there.",
-        "Plug headphones into the pad, then pull them out.",
-    ),
+    "in.headphones_in" to FieldGuess("headphones", "1 = plugged in, 0 = nothing there."),
     "in.mic_in" to FieldGuess(
-        "Headset microphone plugged in",
-        "Whether a microphone is attached to the headphone jack.",
+        "headset microphone",
         "1 = attached, 0 = not; this bit is untested: your answer settles it.",
-        "Plug a headset that has a microphone into the pad.",
     ),
 )
 
 private fun guessFor(src: FieldSource): FieldGuess {
     val id = src.id
+    val axis = id.substringAfterLast('.')
     return when {
         id.startsWith("in.button.") -> buttonGuess(src)
 
-        id.startsWith(
-            "in.stick.",
-        ) -> stickGuess(if (id.contains(".left.")) "Left" else "Right", id.substringAfterLast('.'))
+        id.startsWith("in.stick.") -> checkNotNull(STICK_GUESSES[axis]) { "no stick guess for $id" }
 
-        id.startsWith("in.trigger.") -> triggerGuess(if (id.endsWith("l2")) "L2" else "R2")
+        id.startsWith("in.trigger.") -> TRIGGER_GUESS
 
-        id.startsWith("in.gyro.") -> motionGuess(true, id.substringAfterLast('.'))
-
-        id.startsWith("in.accel.") -> motionGuess(false, id.substringAfterLast('.'))
+        id.startsWith("in.gyro.") || id.startsWith("in.accel.") -> motionGuess(axis)
 
         id.startsWith("in.touch.") -> {
-            val point = id.split('.')[2].toInt()
-            touchGuess(point, id.substringAfter("in.touch.$point."))
+            val part = id.removePrefix("in.touch.").substringAfter('.')
+            checkNotNull(TOUCH_GUESSES[part]) { "no touch guess for $id" }
         }
 
         else -> checkNotNull(OTHER_GUESSES[id]) { "no guess for $id" }

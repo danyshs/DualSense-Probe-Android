@@ -39,7 +39,7 @@ object AppLimits {
     const val REJECTED_REPORTS_LOGGED_MAX = 20
 
     const val ROUTE_TRACE_ROWS_MAX = 500
-    const val TOUR_CARDS_MAX = 160
+    const val TOUR_CARDS_MAX = 64
     const val TOUR_NOTE_CHARS_MAX = 200
     const val TOUR_ROWS_PER_CARD_MAX = 100
     const val SHEET_ROWS_MAX = 60

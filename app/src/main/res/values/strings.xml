@@ -245,7 +245,9 @@
     <string name="readout_none">No reading from the pad yet.</string>
     <string name="readout_pressed">Pressed</string>
     <string name="readout_released">Released</string>
-    <string name="readout_min_max">min %1$s   max %2$s</string>
+    <string name="readout_axis_range">%1$s  %2$s   min %3$s   max %4$s</string>
+    <string name="readout_click">Click  %1$s</string>
+    <string name="readout_button">%1$s  %2$s</string>
     <string name="readout_bytes_changed">Changes seen on this card: %1$d</string>
     <string name="reaction_question">Did the pad react?</string>
     <string name="reaction_yes">Yes</string>

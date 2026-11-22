@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -18,33 +19,41 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.dsprobe.app.R
+import dev.dsprobe.app.debug.Axis
+import dev.dsprobe.app.debug.BarOrientation
 import dev.dsprobe.app.debug.EndpointCard
 import dev.dsprobe.app.debug.Readout
 import dev.dsprobe.app.debug.ReadoutKind
 import dev.dsprobe.app.debug.axisText
+import dev.dsprobe.app.debug.barOrientation
 import dev.dsprobe.app.debug.readoutKindOf
 import dev.dsprobe.app.debug.triggerText
 import dev.dsprobe.app.live.Frame
 import dev.dsprobe.app.live.PadState
+import dev.dsprobe.app.live.TouchPoint
 import dev.dsprobe.app.route.Route
 import dev.dsprobe.app.ui.theme.ChartColors
 import dev.dsprobe.app.ui.theme.NumberStyle
+import kotlin.math.abs
 
 private val BIG_NUMBER = NumberStyle.copy(fontSize = 36.sp, fontWeight = FontWeight.Bold)
-private const val GAUGE_HEIGHT_DP = 32
-private const val BAR_HEIGHT_DP = 16
-private const val MARKER_WIDTH_PX = 8f
-private const val TRACK_ALPHA = 0.5f
-private const val PILL_HEIGHT_DP = 64
+private val LINE_NUMBER = NumberStyle.copy(fontSize = 24.sp, fontWeight = FontWeight.Bold)
+private const val BAR_THICKNESS_DP = 16
+private const val BAR_LENGTH_DP = 120
+private const val BAR_WIDTH_DP = 32
+private const val CENTRE_LINE_PX = 2f
+private const val PILL_HEIGHT_DP = 48
 private const val CENTRE_RATIO = 0.5f
+private const val TOUCH_CENTRE = 0.5f // a touch is 0..1 across the pad; a bar runs -1..1
 
-/** The card's one live readout, or nothing for a card the pad reports nothing live for. */
+/** The card's live readout, or nothing for a card the pad reports nothing live for. */
 @Composable
 fun ReadoutArea(card: EndpointCard, readout: Readout?, route: Route) {
     val kind = readoutKindOf(card)
@@ -57,52 +66,105 @@ fun ReadoutArea(card: EndpointCard, readout: Readout?, route: Route) {
     when (readout) {
         null -> Text(
             stringResource(
-                if (kind ==
-                    ReadoutKind.BYTES
-                ) {
-                    R.string.tour_no_raw
-                } else {
-                    R.string.readout_none
-                },
+                if (kind == ReadoutKind.BYTES) R.string.tour_no_raw else R.string.readout_none,
             ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        is Readout.Axis -> AxisGauge(readout, route)
+        is Readout.Stick -> StickReadout(readout, route)
 
-        is Readout.Trigger -> TriggerFill(readout, route)
+        is Readout.Trigger -> TriggerReadout(readout, route)
 
-        is Readout.Held -> HeldPill(readout.isDown)
+        is Readout.Buttons -> ButtonsReadout(readout)
 
-        is Readout.Bars -> MotionBars(readout)
+        is Readout.Bars -> MotionBars(readout, if (card.id == "in.accel") "in.accel" else "in.gyro")
 
-        is Readout.Touch -> TouchDot(readout, route)
+        is Readout.Finger -> FingerReadout(readout, route)
 
-        is Readout.Words -> Text(readout.text, style = BIG_NUMBER, maxLines = 1, softWrap = false)
+        is Readout.Touch -> TouchDot(readout.touches, route)
+
+        is Readout.Lines -> for (line in readout.lines) {
+            Text(line, style = LINE_NUMBER, maxLines = 1, softWrap = false)
+        }
 
         is Readout.Bytes -> BytesView(readout)
     }
 }
 
-@Composable
-private fun AxisGauge(r: Readout.Axis, route: Route) {
-    val c = drawColors()
-    Text(axisText(r.value, route), style = BIG_NUMBER, maxLines = 1, softWrap = false)
-    Canvas(Modifier.fillMaxWidth().height(GAUGE_HEIGHT_DP.dp)) {
-        drawRect(c.surfaceHigh, Offset.Zero, size)
-        val seenFrom = (r.min + 1f) / 2f * size.width
-        val seenTo = (r.max + 1f) / 2f * size.width
-        drawRect(
-            c.accent.copy(alpha = TRACK_ALPHA),
-            Offset(seenFrom, 0f),
-            Size(seenTo - seenFrom, size.height),
-        )
-        drawRect(c.outline, Offset(size.width * CENTRE_RATIO, 0f), Size(2f, size.height))
-        val x = ((r.value + 1f) / 2f * size.width).coerceIn(0f, size.width - MARKER_WIDTH_PX)
-        drawRect(c.accent, Offset(x, 0f), Size(MARKER_WIDTH_PX, size.height))
+/** One bar: [control] says which way it runs; a positive value goes right or down. */
+private class AxisBar(
+    val control: String,
+    val label: String,
+    val value: Float,
+    val scale: Float,
+    val colour: Color,
+)
+
+private fun DrawScope.centredBar(c: DrawColors, bar: AxisBar, isVertical: Boolean) {
+    drawRect(c.surfaceHigh, Offset.Zero, size)
+    val length = if (isVertical) size.height else size.width
+    val half = length * CENTRE_RATIO
+    val reach = (bar.value / bar.scale).coerceIn(-1f, 1f) * half
+    val from = if (reach >= 0f) half else half + reach
+    if (isVertical) {
+        drawRect(bar.colour, Offset(0f, from), Size(size.width, abs(reach)))
+        drawRect(c.outline, Offset(0f, half), Size(size.width, CENTRE_LINE_PX))
+    } else {
+        drawRect(bar.colour, Offset(from, 0f), Size(abs(reach), size.height))
+        drawRect(c.outline, Offset(half, 0f), Size(CENTRE_LINE_PX, size.height))
     }
+}
+
+@Composable
+private fun VerticalBar(bar: AxisBar) {
+    val c = drawColors()
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(Modifier.width(BAR_WIDTH_DP.dp).height(BAR_LENGTH_DP.dp)) {
+            centredBar(c, bar, isVertical = true)
+        }
+        Text(bar.label, style = NumberStyle, color = c.textDim)
+    }
+}
+
+@Composable
+private fun HorizontalBar(bar: AxisBar) {
+    val c = drawColors()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(bar.label, style = NumberStyle, color = c.textDim)
+        Canvas(Modifier.weight(1f).height(BAR_THICKNESS_DP.dp)) {
+            centredBar(c, bar, isVertical = false)
+        }
+    }
+}
+
+/** The bars of one control: up-and-down ones side by side, left-and-right ones stacked under. */
+@Composable
+private fun AxesBars(bars: List<AxisBar>, modifier: Modifier = Modifier) {
+    val vertical = bars.filter { barOrientation(it.control) == BarOrientation.VERTICAL }
+    val horizontal = bars.filter { barOrientation(it.control) == BarOrientation.HORIZONTAL }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (vertical.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                for (bar in vertical) VerticalBar(bar)
+            }
+        }
+        for (bar in horizontal) HorizontalBar(bar)
+    }
+}
+
+@Composable
+private fun AxisRange(label: String, axis: Axis, route: Route) {
     Text(
-        stringResource(R.string.readout_min_max, axisText(r.min, route), axisText(r.max, route)),
+        stringResource(
+            R.string.readout_axis_range,
+            label,
+            axisText(axis.value, route),
+            axisText(axis.min, route),
+            axisText(axis.max, route),
+        ),
         style = NumberStyle,
         maxLines = 1,
         softWrap = false,
@@ -110,18 +172,63 @@ private fun AxisGauge(r: Readout.Axis, route: Route) {
 }
 
 @Composable
-private fun TriggerFill(r: Readout.Trigger, route: Route) {
+private fun ClickLine(isDown: Boolean) {
+    val state = stringResource(if (isDown) R.string.readout_pressed else R.string.readout_released)
+    Text(
+        stringResource(R.string.readout_click, state),
+        style = NumberStyle,
+        maxLines = 1,
+        softWrap = false,
+    )
+}
+
+@Composable
+private fun StickReadout(r: Readout.Stick, route: Route) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        StickView("", r.x.value, r.y.value, emptyList(), 0L, Modifier.weight(1f))
+        AxesBars(
+            listOf(
+                AxisBar("in.stick.x", "x", r.x.value, 1f, ChartColors.AxisX),
+                AxisBar("in.stick.y", "y", r.y.value, 1f, ChartColors.AxisY),
+            ),
+            Modifier.weight(1f),
+        )
+    }
+    AxisRange("x", r.x, route)
+    AxisRange("y", r.y, route)
+    ClickLine(r.isClicked)
+}
+
+@Composable
+private fun TriggerReadout(r: Readout.Trigger, route: Route) {
     val c = drawColors()
-    Text(triggerText(r.value, route), style = BIG_NUMBER, maxLines = 1, softWrap = false)
-    Canvas(Modifier.fillMaxWidth().height(GAUGE_HEIGHT_DP.dp)) {
-        drawRect(c.surfaceHigh, Offset.Zero, size)
-        drawRect(c.accent, Offset.Zero, Size(size.width * r.value, size.height))
+    val isVertical = barOrientation("in.trigger") == BarOrientation.VERTICAL
+    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+        val bar = if (isVertical) {
+            Modifier.width(BAR_WIDTH_DP.dp).height(BAR_LENGTH_DP.dp)
+        } else {
+            Modifier.weight(1f).height(BAR_THICKNESS_DP.dp)
+        }
+        Canvas(bar) {
+            drawRect(c.surfaceHigh, Offset.Zero, size)
+            if (isVertical) {
+                val fill = size.height * r.value
+                drawRect(c.accent, Offset(0f, size.height - fill), Size(size.width, fill))
+            } else {
+                drawRect(c.accent, Offset.Zero, Size(size.width * r.value, size.height))
+            }
+        }
+        Column {
+            Text(triggerText(r.value, route), style = BIG_NUMBER, maxLines = 1, softWrap = false)
+            ClickLine(r.isClicked)
+        }
     }
 }
 
 @Composable
-private fun HeldPill(isDown: Boolean) {
+private fun HeldPill(label: String?, isDown: Boolean) {
     val scheme = MaterialTheme.colorScheme
+    val state = stringResource(if (isDown) R.string.readout_pressed else R.string.readout_released)
     Surface(
         Modifier.fillMaxWidth().heightIn(min = PILL_HEIGHT_DP.dp),
         color = if (isDown) scheme.primary else scheme.surfaceContainerHigh,
@@ -130,8 +237,8 @@ private fun HeldPill(isDown: Boolean) {
     ) {
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Text(
-                stringResource(if (isDown) R.string.readout_pressed else R.string.readout_released),
-                style = MaterialTheme.typography.headlineMedium,
+                if (label == null) state else stringResource(R.string.readout_button, label, state),
+                style = MaterialTheme.typography.titleLarge,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 softWrap = false,
@@ -141,30 +248,23 @@ private fun HeldPill(isDown: Boolean) {
 }
 
 @Composable
-private fun OneBar(label: String, value: Float, scale: Float, colour: Color) {
-    val c = drawColors()
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(label, style = NumberStyle, color = c.textDim)
-        Canvas(Modifier.weight(1f).height(BAR_HEIGHT_DP.dp)) {
-            drawRect(c.surfaceHigh, Offset.Zero, size)
-            val half = size.width * CENTRE_RATIO
-            val reach = (value / scale).coerceIn(-1f, 1f) * half
-            val from = if (reach >= 0f) half else half + reach
-            drawRect(colour, Offset(from, 0f), Size(kotlin.math.abs(reach), size.height))
-            drawRect(c.outline, Offset(half, 0f), Size(2f, size.height))
-        }
+private fun ButtonsReadout(r: Readout.Buttons) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (r.items.isEmpty()) HeldPill(null, false)
+        for (item in r.items) HeldPill(item.label, item.isDown)
     }
 }
 
 @Composable
-private fun MotionBars(r: Readout.Bars) {
+private fun MotionBars(r: Readout.Bars, base: String) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OneBar("x", r.x, r.scale, ChartColors.AxisX)
-        OneBar("y", r.y, r.scale, ChartColors.AxisY)
-        OneBar("z", r.z, r.scale, ChartColors.AxisZ)
+        AxesBars(
+            listOf(
+                AxisBar("$base.x", "x", r.x, r.scale, ChartColors.AxisX),
+                AxisBar("$base.y", "y", r.y, r.scale, ChartColors.AxisY),
+                AxisBar("$base.z", "z", r.z, r.scale, ChartColors.AxisZ),
+            ),
+        )
         Text(
             stringResource(R.string.motion_values, signed(r.x), signed(r.y), signed(r.z)),
             style = NumberStyle,
@@ -181,8 +281,32 @@ private fun MotionBars(r: Readout.Bars) {
 }
 
 @Composable
-private fun TouchDot(r: Readout.Touch, route: Route) {
-    val state = PadState.EMPTY.copy(touches = r.touches)
+private fun FingerReadout(r: Readout.Finger, route: Route) {
+    TouchDot(listOfNotNull(r.touch), route)
+    val touch = r.touch ?: return
+    AxesBars(
+        listOf(
+            AxisBar(
+                "in.touch.x",
+                "x",
+                (touch.x - TOUCH_CENTRE) / TOUCH_CENTRE,
+                1f,
+                ChartColors.AxisX,
+            ),
+            AxisBar(
+                "in.touch.y",
+                "y",
+                (touch.y - TOUCH_CENTRE) / TOUCH_CENTRE,
+                1f,
+                ChartColors.AxisY,
+            ),
+        ),
+    )
+}
+
+@Composable
+private fun TouchDot(touches: List<TouchPoint>, route: Route) {
+    val state = PadState.EMPTY.copy(touches = touches)
     val ui = LiveUi(Frame(state, emptySet(), emptySet()), FeelFrame.EMPTY)
     TouchpadView(ui, null, route == Route.ANDROID)
 }

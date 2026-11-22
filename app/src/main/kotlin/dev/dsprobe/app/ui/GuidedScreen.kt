@@ -57,7 +57,7 @@ import dev.dsprobe.app.debug.Readout
 import dev.dsprobe.app.debug.RowLines
 import dev.dsprobe.app.debug.Verdict
 import dev.dsprobe.app.debug.guessText
-import dev.dsprobe.app.debug.locationLine
+import dev.dsprobe.app.debug.locationLines
 import dev.dsprobe.app.debug.sheetLines
 import dev.dsprobe.app.output.OutputsShown
 import dev.dsprobe.app.route.PadSession
@@ -127,11 +127,11 @@ private fun CardHead(card: EndpointCard, playerLeds: Int, route: Route) {
         )
     }
     Text(card.title, style = MaterialTheme.typography.headlineSmall)
-    Text(
-        locationLine(card, playerLeds, route, stringResource(R.string.tour_no_android_event)),
-        style = NumberStyle,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    val places =
+        locationLines(card, playerLeds, route, stringResource(R.string.tour_no_android_event))
+    for (place in places) {
+        Text(place, style = NumberStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
     Text(guessText(card, route), style = MaterialTheme.typography.bodyLarge)
 }
 

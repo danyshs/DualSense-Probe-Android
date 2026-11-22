@@ -1,5 +1,6 @@
 package dev.dsprobe.app.debug
 
+import dev.dsprobe.app.live.Battery
 import dev.dsprobe.app.live.Motion
 import dev.dsprobe.app.live.MotionUnit
 import dev.dsprobe.app.live.PadState
@@ -21,61 +22,118 @@ private fun leftX(v: Float): PadState = PadState.EMPTY.copy(leftX = v)
 
 class LiveReadoutTest {
     @Test fun kindFollowsTheCardType() {
-        assertEquals(ReadoutKind.AXIS, readoutKindOf(card("in.stick.left.x")))
+        assertEquals(ReadoutKind.STICK, readoutKindOf(card("in.stick.left")))
         assertEquals(ReadoutKind.TRIGGER, readoutKindOf(card("in.trigger.r2")))
-        assertEquals(ReadoutKind.BUTTON, readoutKindOf(card("in.button.cross")))
-        assertEquals(ReadoutKind.MOTION, readoutKindOf(card("in.gyro.x")))
-        assertEquals(ReadoutKind.MOTION, readoutKindOf(card("in.accel.z")))
-        assertEquals(ReadoutKind.TOUCH, readoutKindOf(card("in.touch.0.x.low8")))
+        assertEquals(ReadoutKind.BUTTONS, readoutKindOf(card("in.buttons.face")))
+        assertEquals(ReadoutKind.MOTION, readoutKindOf(card("in.gyro")))
+        assertEquals(ReadoutKind.MOTION, readoutKindOf(card("in.accel")))
+        assertEquals(ReadoutKind.FINGER, readoutKindOf(card("in.touch.1")))
+        assertEquals(ReadoutKind.TEXT, readoutKindOf(card("in.battery")))
         val unknown = CARDS.values.first { it.confidence == Confidence.UNKNOWN && it.rawByte >= 0 }
         assertEquals(ReadoutKind.BYTES, readoutKindOf(unknown))
         assertEquals(ReadoutKind.NONE, readoutKindOf(card("out.rumble")))
     }
 
     // the freeze: the readout came from capped trace rows; it must follow the state every frame
-    @Test fun axisReadoutFollowsTwoSuccessiveStates() {
+    @Test fun stickReadoutFollowsTwoSuccessiveStates() {
         val t = ReadoutTracker()
-        val c = card("in.stick.left.x")
-        assertEquals(-0.067f, (t.read(c, leftX(-0.067f), null) as Readout.Axis).value, 0f)
-        assertEquals(0.5f, (t.read(c, leftX(0.5f), null) as Readout.Axis).value, 0f)
+        val c = card("in.stick.left")
+        assertEquals(-0.067f, (t.read(c, leftX(-0.067f), null) as Readout.Stick).x.value, 0f)
+        assertEquals(0.5f, (t.read(c, leftX(0.5f), null) as Readout.Stick).x.value, 0f)
     }
 
-    @Test fun buttonAndTriggerFollowTwoStates() {
+    @Test fun aStickCardReadsBothAxesAndItsOwnClick() {
         val t = ReadoutTracker()
-        val b = card("in.button.cross")
+        val state = PadState.EMPTY.copy(
+            leftX = 0.25f,
+            leftY = -0.5f,
+            rightX = 0.75f,
+            held = setOf(Button.R3),
+        )
+        val left = t.read(card("in.stick.left"), state, null) as Readout.Stick
+        assertEquals(0.25f, left.x.value, 0f)
+        assertEquals(-0.5f, left.y.value, 0f)
+        assertEquals(false, left.isClicked)
+        val right = t.read(card("in.stick.right"), state, null) as Readout.Stick
+        assertEquals(0.75f, right.x.value, 0f)
+        assertEquals(true, right.isClicked)
+    }
+
+    @Test fun buttonsAndTriggersFollowTwoStates() {
+        val t = ReadoutTracker()
+        val face = card("in.buttons.face")
         val down = PadState.EMPTY.copy(held = setOf(Button.CROSS))
-        assertEquals(Readout.Held(true), t.read(b, down, null))
-        assertEquals(Readout.Held(false), t.read(b, PadState.EMPTY, null))
+        val pressed = t.read(face, down, null) as Readout.Buttons
+        assertEquals(
+            listOf("Square", "Cross", "Circle", "Triangle"),
+            pressed.items.map {
+                it.label
+            },
+        )
+        assertEquals(listOf(false, true, false, false), pressed.items.map { it.isDown })
+        val released = t.read(face, PadState.EMPTY, null) as Readout.Buttons
+        assertTrue(released.items.none { it.isDown })
         val r2 = card("in.trigger.r2")
-        assertEquals(Readout.Trigger(0.25f), t.read(r2, PadState.EMPTY.copy(r2 = 0.25f), null))
-        assertEquals(Readout.Trigger(1f), t.read(r2, PadState.EMPTY.copy(r2 = 1f), null))
+        assertEquals(
+            Readout.Trigger(0.25f, false),
+            t.read(r2, PadState.EMPTY.copy(r2 = 0.25f), null),
+        )
+        val full = PadState.EMPTY.copy(r2 = 1f, held = setOf(Button.R2))
+        assertEquals(Readout.Trigger(1f, true), t.read(r2, full, null))
     }
 
-    @Test fun minAndMaxTrackThisCardAndResetOnTheNext() {
+    @Test fun minAndMaxTrackThisCardPerAxisAndResetOnTheNext() {
         val t = ReadoutTracker()
-        val c = card("in.stick.left.x")
+        val c = card("in.stick.left")
         t.read(c, leftX(0.2f), null)
         t.read(c, leftX(-0.6f), null)
-        val r = t.read(c, leftX(0.4f), null) as Readout.Axis
-        assertEquals(-0.6f, r.min, 0f)
-        assertEquals(0.4f, r.max, 0f)
-        val other = t.read(card("in.stick.right.x"), PadState.EMPTY.copy(rightX = 0.1f), null)
-        assertEquals(Readout.Axis(0.1f, 0.1f, 0.1f), other)
+        val r = t.read(c, leftX(0.4f), null) as Readout.Stick
+        assertEquals(-0.6f, r.x.min, 0f)
+        assertEquals(0.4f, r.x.max, 0f)
+        assertEquals(0f, r.y.min, 0f)
+        assertEquals(0f, r.y.max, 0f)
+        val other = t.read(card("in.stick.right"), PadState.EMPTY.copy(rightX = 0.1f), null)
+        assertEquals(Axis(0.1f, 0.1f, 0.1f), (other as Readout.Stick).x)
     }
 
-    @Test fun motionAndTouchReadFromTheState() {
+    @Test fun motionCardsReadTheirOwnSensor() {
         val t = ReadoutTracker()
         val m = Motion(3f, -2f, 1f, MotionUnit.SI)
-        val bars = t.read(card("in.gyro.x"), PadState.EMPTY.copy(gyro = m), null) as Readout.Bars
+        val gyro = PadState.EMPTY.copy(gyro = m)
+        val bars = t.read(card("in.gyro"), gyro, null) as Readout.Bars
         assertEquals(3f, bars.scale, 0f)
-        assertNull(t.read(card("in.gyro.x"), PadState.EMPTY, null))
-        val finger = TouchPoint(0, 0.5f, 0.5f, false)
-        val touch = t.read(
-            card("in.touch.0.x.low8"),
-            PadState.EMPTY.copy(touches = listOf(finger)),
-            null,
+        assertEquals(-2f, bars.y, 0f)
+        assertNull(t.read(card("in.accel"), gyro, null))
+        val accel = PadState.EMPTY.copy(accel = Motion(0f, 0f, 9f, MotionUnit.SI))
+        assertEquals(9f, (t.read(card("in.accel"), accel, null) as Readout.Bars).z, 0f)
+    }
+
+    @Test fun eachFingerCardReadsItsOwnSlot() {
+        val t = ReadoutTracker()
+        val a = TouchPoint(0, 0.5f, 0.5f, false)
+        val b = TouchPoint(1, 0.25f, 0.75f, false)
+        val two = PadState.EMPTY.copy(touches = listOf(a, b))
+        assertEquals(Readout.Finger(a), t.read(card("in.touch.0"), two, null))
+        assertEquals(Readout.Finger(b), t.read(card("in.touch.1"), two, null))
+        val one = PadState.EMPTY.copy(touches = listOf(a))
+        assertEquals(Readout.Finger(null), t.read(card("in.touch.1"), one, null))
+        val pointer = t.read(card("android.touchpad"), one, null)
+        assertEquals(Readout.Touch(listOf(a)), pointer)
+    }
+
+    @Test fun textCardsListEachFieldOnceAndSayNothingWithoutAReading() {
+        val t = ReadoutTracker()
+        val battery = card("in.battery")
+        assertNull(t.read(battery, PadState.EMPTY, null))
+        val raw = PadState.EMPTY.copy(battery = Battery.RawNibble(8, 2))
+        assertEquals(
+            Readout.Lines(listOf("level nibble 8", "charging nibble 2")),
+            t.read(battery, raw, null),
         )
-        assertEquals(Readout.Touch(listOf(finger)), touch)
+        val pct = PadState.EMPTY.copy(battery = Battery.Percent(80))
+        assertEquals(Readout.Lines(listOf("80%")), t.read(battery, pct, null))
+        val headset = t.read(card("in.headset"), PadState.EMPTY.copy(headphonesIn = true), null)
+        assertEquals(Readout.Lines(listOf("plugged in")), headset)
     }
 
     @Test fun unknownRangeShowsBytesAndCountsChanges() {
@@ -93,7 +151,7 @@ class LiveReadoutTest {
     }
 
     @Test fun stickGuessUnitsDifferByRoute() {
-        val c = card("in.stick.left.x")
+        val c = card("in.stick.left")
         val usb = guessText(c, Route.DIRECT_USB)
         val android = guessText(c, Route.ANDROID)
         assertNotEquals(usb, android)
@@ -101,6 +159,7 @@ class LiveReadoutTest {
         assertTrue(android, "+1.0" in android && "255" !in android)
         val r2 = card("in.trigger.r2")
         assertTrue(guessText(r2, Route.ANDROID).contains("1.0 = squeezed"))
+        assertEquals(card("in.dpad").guess, guessText(card("in.dpad"), Route.ANDROID))
     }
 
     @Test fun valueTextUsesTheRoutesUnits() {

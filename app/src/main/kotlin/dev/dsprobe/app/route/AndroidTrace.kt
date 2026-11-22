@@ -146,8 +146,11 @@ private fun sourceOfButton(control: String): String? {
  */
 fun androidSourceOf(control: String): String? = when {
     control.startsWith("in.button.") -> sourceOfButton(control)
+
     control.startsWith("in.gyro.") -> "SensorManager TYPE_GYROSCOPE"
+
     control.startsWith("in.accel.") -> "SensorManager TYPE_ACCELEROMETER"
+
     control.startsWith("in.touch.0.") && (".x." in control || ".y." in control) ->
         "MotionEvent.AXIS_X/AXIS_Y (mouse pointer)"
 
