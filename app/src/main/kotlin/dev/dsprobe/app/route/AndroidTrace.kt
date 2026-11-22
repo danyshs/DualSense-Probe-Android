@@ -112,6 +112,51 @@ private val AXIS_SPECS = listOf(
     AxisSpec(MotionEvent.AXIS_HAT_Y, "AXIS_HAT_Y", "in.dpad") { it.hatY },
 )
 
+private const val SOURCE_JOYSTICK = "JOYSTICK"
+
+private val KEY_NAMES = listOf(
+    KeyEvent.KEYCODE_BUTTON_A to "KEYCODE_BUTTON_A",
+    KeyEvent.KEYCODE_BUTTON_B to "KEYCODE_BUTTON_B",
+    KeyEvent.KEYCODE_BUTTON_X to "KEYCODE_BUTTON_X",
+    KeyEvent.KEYCODE_BUTTON_Y to "KEYCODE_BUTTON_Y",
+    KeyEvent.KEYCODE_BUTTON_L1 to "KEYCODE_BUTTON_L1",
+    KeyEvent.KEYCODE_BUTTON_R1 to "KEYCODE_BUTTON_R1",
+    KeyEvent.KEYCODE_BUTTON_L2 to "KEYCODE_BUTTON_L2",
+    KeyEvent.KEYCODE_BUTTON_R2 to "KEYCODE_BUTTON_R2",
+    KeyEvent.KEYCODE_BUTTON_THUMBL to "KEYCODE_BUTTON_THUMBL",
+    KeyEvent.KEYCODE_BUTTON_THUMBR to "KEYCODE_BUTTON_THUMBR",
+    KeyEvent.KEYCODE_BUTTON_SELECT to "KEYCODE_BUTTON_SELECT",
+    KeyEvent.KEYCODE_BUTTON_START to "KEYCODE_BUTTON_START",
+    KeyEvent.KEYCODE_BUTTON_MODE to "KEYCODE_BUTTON_MODE",
+)
+
+private fun sourceOfButton(control: String): String? {
+    if (control == "in.button.touchpad_click") {
+        return "MotionEvent.BUTTON_PRIMARY = ${MotionEvent.BUTTON_PRIMARY}"
+    }
+    val key = KEY_NAMES.firstOrNull { (code, _) ->
+        buttonForKeyCode(code)?.let(::buttonControl) == control
+    } ?: return null
+    return "KeyEvent.${key.second} = ${key.first}"
+}
+
+/**
+ * The Android source of a pad control, from the same tables the trace rows use: the axis, key code,
+ * pointer or sensor that carries it. Null when Android gives no event for it.
+ */
+fun androidSourceOf(control: String): String? = when {
+    control.startsWith("in.button.") -> sourceOfButton(control)
+    control.startsWith("in.gyro.") -> "SensorManager TYPE_GYROSCOPE"
+    control.startsWith("in.accel.") -> "SensorManager TYPE_ACCELEROMETER"
+    control.startsWith("in.touch.0.") && (".x." in control || ".y." in control) ->
+        "MotionEvent.AXIS_X/AXIS_Y (mouse pointer)"
+
+    else -> AXIS_SPECS.filter { it.control == control }.takeIf { it.isNotEmpty() }
+        ?.let { specs ->
+            "MotionEvent." + specs.joinToString(" / ") { it.name } + " · source $SOURCE_JOYSTICK"
+        }
+}
+
 private fun signed(v: Float): String = String.format(Locale.ROOT, "%+.3f", v)
 
 /** One row per joystick axis that moved between two readings. */

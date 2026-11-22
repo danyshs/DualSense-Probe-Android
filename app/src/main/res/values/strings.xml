@@ -140,6 +140,8 @@
     <string name="try_l2">L2</string>
     <string name="try_triggers_off">Off</string>
     <string name="tour_title">Guided test</string>
+    <string name="tour_leave">Leave guided test</string>
+    <string name="tour_no_android_event">Android gives no event for this (route: Android mode)</string>
     <string name="tour_nothing">Nothing seen yet: use the control while this card is open.</string>
     <string name="tour_next">Next</string>
     <string name="tour_back">Back</string>

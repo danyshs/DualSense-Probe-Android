@@ -60,6 +60,7 @@ import dev.dsprobe.app.debug.sheetLines
 import dev.dsprobe.app.output.OutputsShown
 import dev.dsprobe.app.route.PadSession
 import dev.dsprobe.app.route.Reduction
+import dev.dsprobe.app.route.Route
 import dev.dsprobe.app.route.RouteState
 import dev.dsprobe.app.route.boundary
 import dev.dsprobe.app.ui.theme.NumberStyle
@@ -106,7 +107,7 @@ private fun ConfidenceChip(c: Confidence) {
 }
 
 @Composable
-private fun CardHead(card: EndpointCard, playerLeds: Int) {
+private fun CardHead(card: EndpointCard, playerLeds: Int, route: Route) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -126,7 +127,7 @@ private fun CardHead(card: EndpointCard, playerLeds: Int) {
     }
     Text(card.title, style = MaterialTheme.typography.headlineSmall)
     Text(
-        locationLine(card, playerLeds),
+        locationLine(card, playerLeds, route, stringResource(R.string.tour_no_android_event)),
         style = NumberStyle,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -201,7 +202,7 @@ private fun CardBody(tour: EndpointTour, card: EndpointCard, env: TryEnv, liveRa
         Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        CardHead(card, env.shown.playerLeds)
+        CardHead(card, env.shown.playerLeds, routeOf(env.state))
         LiveValue(tour, card, liveRaw)
         TryPanel(card, env, tour::markTried)
         if (tour.reactionPending) {
@@ -383,7 +384,7 @@ fun GuidedScreen(
         }) { shareLog(context, session.exportLog(runner.results), shareTitle) }
     }
     Column(Modifier.fillMaxSize()) {
-        TopBar(R.string.tour_title, actions.onUp)
+        CloseBar(R.string.tour_title, R.string.tour_leave, actions.onUp)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (card == null) {
                 Summary(tour, share)

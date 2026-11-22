@@ -2,6 +2,8 @@ package dev.dsprobe.app.debug
 
 import dev.dsprobe.app.AppLimits
 import dev.dsprobe.app.output.ledMaskText
+import dev.dsprobe.app.route.Route
+import dev.dsprobe.app.route.androidSourceOf
 import dev.dsprobe.pad.FieldSource
 import dev.dsprobe.pad.INPUT_MAP
 import dev.dsprobe.pad.Limits
@@ -530,15 +532,21 @@ private val PLAYER_LED_CARDS = setOf("out.player_leds", "android.light.player")
 
 /**
  * The location line, with the live player LED byte (binary, hex, which LED) added on the cards that
- * drive it.
+ * drive it. On the Android route an input card names its Android source instead of the report
+ * byte; [noAndroidEvent] is the text for a field Android has no event for.
  */
-fun locationLine(card: EndpointCard, playerLeds: Int): String = if (card.id in
-    PLAYER_LED_CARDS
-) {
-    card.where + " · now " + ledMaskText(playerLeds)
-} else {
-    card.where
+fun locationLine(card: EndpointCard, playerLeds: Int, route: Route, noAndroidEvent: String): String {
+    if (route == Route.ANDROID && card.kind in INPUT_KINDS) {
+        return androidSourceOf(card.id) ?: noAndroidEvent
+    }
+    return if (card.id in PLAYER_LED_CARDS) {
+        card.where + " · now " + ledMaskText(playerLeds)
+    } else {
+        card.where
+    }
 }
+
+private val INPUT_KINDS = setOf(CardKind.INPUT_FIELD, CardKind.INPUT_RANGE)
 
 /**
  * Every endpoint the guided test visits, in order: input fields, free report bytes, outputs, audio,

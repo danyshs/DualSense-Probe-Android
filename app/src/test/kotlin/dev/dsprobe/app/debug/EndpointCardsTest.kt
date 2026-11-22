@@ -1,10 +1,12 @@
 package dev.dsprobe.app.debug
 
 import dev.dsprobe.app.output.ledMaskText
+import dev.dsprobe.app.route.Route
 import dev.dsprobe.pad.INPUT_MAP
 import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.OutputField
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -220,7 +222,7 @@ class EndpointCardsTest {
 
     @Test fun theLocationLineOfAPlayerLedCardCarriesTheLiveByte() {
         val leds = cards.single { it.id == "out.player_leds" }
-        assertTrue(locationLine(leds, 0x10).endsWith("0b00010000 = 0x10, LED 5"))
+        assertTrue(locationLine(leds, 0x10, Route.DIRECT_USB, NO_EVENT).endsWith("0b00010000 = 0x10, LED 5"))
         assertEquals(
             cards.single { it.id == "out.lightbar" }.where,
             locationLine(
@@ -229,7 +231,36 @@ class EndpointCardsTest {
                         "out.lightbar"
                 },
                 0x10,
+                Route.DIRECT_USB,
+                NO_EVENT,
             ),
         )
     }
+
+    private fun line(id: String, route: Route) =
+        locationLine(cards.single { it.id == id }, 0, route, NO_EVENT)
+
+    @Test fun anAndroidModeInputCardNamesTheAndroidSourceNotTheByte() {
+        val text = line("in.stick.left.x", Route.ANDROID)
+        assertTrue(text, "AXIS_X" in text)
+        assertFalse(text, "byte" in text)
+        assertEquals("KeyEvent.KEYCODE_BUTTON_A = 96", line("in.button.cross", Route.ANDROID))
+        assertTrue(line("in.gyro.x", Route.ANDROID).contains("TYPE_GYROSCOPE"))
+    }
+
+    @Test fun aDirectUsbInputCardKeepsTheByteLocation() {
+        val text = line("in.stick.left.x", Route.DIRECT_USB)
+        assertTrue(text, "byte 1" in text)
+        assertFalse(text, "AXIS_X" in text)
+    }
+
+    @Test fun anAndroidModeFieldWithNoAndroidSourceSaysSo() {
+        assertEquals(NO_EVENT, line("in.button.mute", Route.ANDROID))
+        assertEquals(NO_EVENT, line("in.sequence", Route.ANDROID))
+        assertEquals(NO_EVENT, line(unclaimedId(), Route.ANDROID))
+    }
+
+    private fun unclaimedId(): String = cards.first { it.kind == CardKind.INPUT_RANGE }.id
 }
+
+private const val NO_EVENT = "Android gives no event for this (route: Android mode)"

@@ -11,6 +11,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,6 +42,25 @@ fun TopBar(@StringRes titleRes: Int, onUp: () -> Unit, modifier: Modifier = Modi
         Text(
             stringResource(titleRes),
             Modifier.padding(start = 16.dp).weight(1f),
+            style = MaterialTheme.typography.headlineSmall,
+            maxLines = 1,
+        )
+    }
+}
+
+/** The bar of a screen that has its own Back below: a close icon and the screen's name. */
+@Composable
+fun CloseBar(@StringRes titleRes: Int, closeDescriptionRes: Int, onClose: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClose, Modifier.size(TOUCH_TARGET_DP.dp)) {
+            Icon(Icons.Filled.Close, stringResource(closeDescriptionRes))
+        }
+        Text(
+            stringResource(titleRes),
+            Modifier.padding(start = 8.dp).weight(1f),
             style = MaterialTheme.typography.headlineSmall,
             maxLines = 1,
         )
