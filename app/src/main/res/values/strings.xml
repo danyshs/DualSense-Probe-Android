@@ -276,7 +276,11 @@
     <string name="off_state_off">off</string>
     <string name="off_state_failed">still on</string>
     <string name="off_state_unavailable">not on this route</string>
-    <string name="off_table_hint">Turn everything on, check the pad, then Everything off. A row that stays on shows in red.</string>
+    <string name="rumble_more">More rumble controls</string>
+    <string name="details_open">Details</string>
+    <string name="details_close">Close</string>
+    <string name="chevron_next_cd">More cards: swipe left</string>
+    <string name="chevron_back_cd">Earlier cards: swipe right</string>
     <string name="accel_down">down</string>
     <string name="accel_level_cd">Bubble level: the dot shows which way the pad tilts, the arrow points down</string>
     <string name="accel_total_si">Total %1$s m/s² (at rest: about 9.8)</string>

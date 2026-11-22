@@ -44,6 +44,11 @@ object AppLimits {
     const val TOUR_ROWS_PER_CARD_MAX = 100
     const val SHEET_ROWS_MAX = 60
     const val SHEET_HEIGHT_DP = 320
+
+    // a guess: about 600 dp is left for the card after the bars, in rows of about 48 dp; confirm
+    // with a phone screenshot
+    const val GUIDED_MAIN_ROWS_MAX = 12
+    const val CHEVRON_FADE_MS = 300
     const val SCREEN_STACK_DEPTH_MAX = 8
     const val LOG_PREVIEW_CHARS_MAX = 8_000
     const val MIC_RECORD_MS = 5_000L

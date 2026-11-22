@@ -57,14 +57,22 @@ private const val TOUCH_CENTRE = 0.5f // a touch is 0..1 across the pad; a bar r
 
 /** The card's live readout, or nothing for a card the pad reports nothing live for. */
 @Composable
-fun ReadoutArea(card: EndpointCard, readout: Readout?, route: Route, onResetGyro: () -> Unit) {
+fun ReadoutArea(
+    card: EndpointCard,
+    readout: Readout?,
+    route: Route,
+    onResetGyro: () -> Unit,
+    compact: Boolean = false,
+) {
     val kind = readoutKindOf(card)
     if (kind == ReadoutKind.NONE) return
-    Text(
-        stringResource(R.string.tour_live_value),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    if (!compact) {
+        Text(
+            stringResource(R.string.tour_live_value),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
     when (readout) {
         null -> Text(
             stringResource(
@@ -77,11 +85,11 @@ fun ReadoutArea(card: EndpointCard, readout: Readout?, route: Route, onResetGyro
 
         is Readout.Trigger -> TriggerReadout(readout, route)
 
-        is Readout.Buttons -> ButtonsReadout(readout)
+        is Readout.Buttons -> ButtonsReadout(readout, compact)
 
-        is Readout.Bars -> MotionReadout(readout, card.id == "in.accel", onResetGyro)
+        is Readout.Bars -> MotionReadout(readout, card.id == "in.accel", onResetGyro, compact)
 
-        is Readout.Finger -> FingerReadout(readout, route)
+        is Readout.Finger -> FingerReadout(readout, route, compact)
 
         is Readout.Lines -> for (line in readout.lines) {
             Text(line, style = LINE_NUMBER, maxLines = 1, softWrap = false)
@@ -226,11 +234,15 @@ private fun TriggerReadout(r: Readout.Trigger, route: Route) {
 }
 
 @Composable
-private fun HeldPill(label: String?, isDown: Boolean) {
+private fun HeldPill(
+    label: String?,
+    isDown: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val scheme = MaterialTheme.colorScheme
     val state = stringResource(if (isDown) R.string.readout_pressed else R.string.readout_released)
     Surface(
-        Modifier.fillMaxWidth().heightIn(min = PILL_HEIGHT_DP.dp),
+        modifier.heightIn(min = PILL_HEIGHT_DP.dp),
         color = if (isDown) scheme.primary else scheme.surfaceContainerHigh,
         contentColor = if (isDown) scheme.onPrimary else scheme.onSurfaceVariant,
         shape = RoundedCornerShape(PILL_HEIGHT_DP.dp),
@@ -248,23 +260,49 @@ private fun HeldPill(label: String?, isDown: Boolean) {
 }
 
 @Composable
-private fun ButtonsReadout(r: Readout.Buttons) {
+private fun ButtonsReadout(r: Readout.Buttons, compact: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (r.items.isEmpty()) HeldPill(null, false)
-        for (item in r.items) HeldPill(item.label, item.isDown)
+        val full = Modifier.fillMaxWidth()
+        if (r.items.isEmpty()) HeldPill(null, false, full)
+        if (!compact) {
+            for (item in r.items) HeldPill(item.label, item.isDown, full)
+            return
+        }
+        // two pills a row, so a group of six still fits three rows
+        for (pair in r.items.chunked(2)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (item in pair) HeldPill(item.label, item.isDown, Modifier.weight(1f))
+                if (pair.size == 1) Box(Modifier.weight(1f))
+            }
+        }
     }
 }
 
 /** The visual check first (bubble level or dials), the bars and numbers under it. */
 @Composable
-private fun MotionReadout(r: Readout.Bars, isAccel: Boolean, onResetGyro: () -> Unit) {
+private fun MotionReadout(
+    r: Readout.Bars,
+    isAccel: Boolean,
+    onResetGyro: () -> Unit,
+    compact: Boolean,
+) {
     val angles = r.angles
     val unit = if (r.isRawCounts) MotionUnit.RAW_COUNTS else MotionUnit.SI
-    TiltPicture(r.gravity, angles, if (isAccel) onResetGyro else null)
+    // the compact card keeps only the visual check and one line of numbers; the rest is in Details
+    if (!compact) TiltPicture(r.gravity, angles, if (isAccel) onResetGyro else null)
     if (isAccel) {
         BubbleLevel(Motion(r.x, r.y, r.z, unit))
     } else if (angles != null) {
         GyroDials(r, angles, onResetGyro)
+    }
+    if (compact) {
+        Text(
+            stringResource(R.string.motion_values, signed(r.x), signed(r.y), signed(r.z)),
+            style = NumberStyle,
+            maxLines = 1,
+            softWrap = false,
+        )
+        return
     }
     MotionBars(r, if (isAccel) "in.accel" else "in.gyro")
     val hints = if (isAccel) {
@@ -303,9 +341,10 @@ private fun MotionBars(r: Readout.Bars, base: String) {
 }
 
 @Composable
-private fun FingerReadout(r: Readout.Finger, route: Route) {
+private fun FingerReadout(r: Readout.Finger, route: Route, compact: Boolean) {
     TouchDot(listOfNotNull(r.touch), route)
     val touch = r.touch ?: return
+    if (compact) return
     AxesBars(
         listOf(
             AxisBar(

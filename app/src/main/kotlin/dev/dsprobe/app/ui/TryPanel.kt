@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -77,12 +78,35 @@ private fun OutputReason(lock: Reduction?, env: TryEnv) {
     }
 }
 
+/** The main area's rumble: Try it and Stop side by side, and a button to the full panel. */
+@Composable
+private fun RumbleTry(env: TryEnv, onTried: () -> Unit, onMore: () -> Unit) {
+    val lock = env.locked.firstOrNull { it.feature == Feature.RUMBLE }
+    val enabled = canSendOutputs(env.state) && lock == null
+    val fire = { choice: TryChoice ->
+        fireChoice(choice, env.outputs)
+        onTried()
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        PrimaryButton({ fire(TryChoice.RUMBLE_BOTH) }, Modifier.weight(1f), enabled) {
+            OneLine(R.string.tour_try_it)
+        }
+        QuietButton({ fire(TryChoice.RUMBLE_STOP) }, Modifier.weight(1f), enabled) {
+            OneLine(R.string.rumble_stop)
+        }
+    }
+    TonalButton(onMore, Modifier.fillMaxWidth()) { OneLine(R.string.rumble_more) }
+    OutputReason(lock, env)
+    val isRumbling = env.shown.rumbleRemainingMs > 0L
+    LaunchedEffect(isRumbling) { if (isRumbling) onTried() }
+}
+
 /**
  * The Outputs screen's rumble panel with every pattern as a button that plays at once. The
- * question comes once something is rumbling.
+ * question comes once something is rumbling. Lives in the Details sheet of the rumble card.
  */
 @Composable
-private fun RumbleTry(env: TryEnv, onTried: () -> Unit) {
+fun RumbleFullControls(env: TryEnv, onTried: () -> Unit) {
     val lock = env.locked.firstOrNull { it.feature == Feature.RUMBLE }
     val enabled = canSendOutputs(env.state) && lock == null
     RumbleSection(enabled, env.shown, env.outputs, playOnPick = true)
@@ -209,7 +233,7 @@ private fun AudioTry(kind: TryKind, env: TryEnv, onTried: () -> Unit) {
  * fire.
  */
 @Composable
-fun TryPanel(card: EndpointCard, env: TryEnv, onTried: () -> Unit) {
+fun TryPanel(card: EndpointCard, env: TryEnv, onTried: () -> Unit, onMore: () -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (val tryIt = card.tryIt) {
             is TryIt.Reason -> ReasonLine(tryIt.text)
@@ -221,7 +245,7 @@ fun TryPanel(card: EndpointCard, env: TryEnv, onTried: () -> Unit) {
                     onTried,
                 )
 
-                TryKind.RUMBLE -> RumbleTry(env, onTried)
+                TryKind.RUMBLE -> RumbleTry(env, onTried, onMore)
 
                 TryKind.ALL_OFF -> EverythingOffPanel(env, onTried)
 

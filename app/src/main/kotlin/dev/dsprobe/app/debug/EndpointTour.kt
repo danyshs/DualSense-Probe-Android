@@ -109,6 +109,20 @@ class EndpointTour(val cards: List<EndpointCard>) {
         position = cards.size
     }
 
+    /** Pages the pager shows: every card, then the summary. */
+    val pageCount: Int get() = cards.size + 1
+
+    /**
+     * Moves to a page of the pager (the same index Next and Back move); the last page is the
+     * summary. Out-of-range pages clamp.
+     */
+    fun goTo(page: Int) {
+        val target = page.coerceIn(0, cards.size)
+        if (target == position) return
+        if (target == cards.size) stop() else open(target)
+        check(position == target) { "goTo landed on $position, not $target" }
+    }
+
     /** Records the answer on the open card. The tour stays on it. */
     fun answer(verdict: Verdict?, note: String) {
         val entry = entryOf(current) ?: return

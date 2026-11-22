@@ -100,11 +100,6 @@ fun EverythingOffPanel(env: TryEnv, onTried: () -> Unit) {
             enabled = canSend,
         ) { OneLine(R.string.try_all_off) }
         if (!canSend) ReasonLine(stringResource(R.string.tour_no_route))
-        Text(
-            stringResource(R.string.off_table_hint),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         for (row in offRows(env.shown, drivable)) OffTableRow(row, isFailed(row, offPressed))
     }
 }

@@ -49,6 +49,29 @@ private fun ExpectationText(expectation: Expectation) {
     }
 }
 
+/** The main area's one line: what to expect on the live connection, nothing else. */
+@Composable
+fun ExpectedLine(cardId: String, connection: Connection) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            stringResource(R.string.expected_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            if (connection == Connection.NONE) {
+                stringResource(R.string.expected_no_pad)
+            } else {
+                expectationOn(cardId, connection).text
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = EXPECTED_LINES_MAX,
+        )
+    }
+}
+
+private const val EXPECTED_LINES_MAX = 3
+
 /**
  * What to expect on the live connection for this card, and a collapsed line with the other two.
  * Nothing here sends or reads anything.
