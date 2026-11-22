@@ -95,6 +95,7 @@ private val INPUT_GROUPS: List<InputGroup> = listOf(
             "in.button.ps",
             "in.button.touchpad_click",
             "in.button.mute",
+            "in.key", // Android key rows no button maps to; no INPUT_MAP field sits under it
         ),
     ),
     finger(0),

@@ -83,8 +83,6 @@ fun ReadoutArea(card: EndpointCard, readout: Readout?, route: Route, onResetGyro
 
         is Readout.Finger -> FingerReadout(readout, route)
 
-        is Readout.Touch -> TouchDot(readout.touches, route)
-
         is Readout.Lines -> for (line in readout.lines) {
             Text(line, style = LINE_NUMBER, maxLines = 1, softWrap = false)
         }

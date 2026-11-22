@@ -59,10 +59,8 @@ class EndpointCardsTest {
         for (card in rangeCards) assertTrue(card.id, card.rawByte >= 1 && card.rawByteCount >= 1)
     }
 
-    @Test fun theFirmwareReportAndAndroidCardsExist() {
-        val ids = cards.map { it.id }.toSet()
-        assertTrue("feature.0x20" in ids)
-        assertTrue(cards.any { it.kind == CardKind.ANDROID })
+    @Test fun theFirmwareReportCardExists() {
+        assertTrue("feature.0x20" in cards.map { it.id }.toSet())
     }
 
     @Test fun everyTagMatchesItsFactsConfirmationAndRowlessCardsAreUnknown() {
@@ -183,9 +181,6 @@ class EndpointCardsTest {
             "out.mute_led" to TryKind.MUTE_LED,
             "out.rumble_both_modes" to TryKind.ALL_OFF, "audio.mic" to TryKind.MIC,
             "audio.speaker" to TryKind.SPEAKER, "audio.headphones" to TryKind.HEADPHONES,
-            "android.vibrators" to TryKind.RUMBLE,
-            "android.light.indicator" to TryKind.LIGHTBAR,
-            "android.light.player" to TryKind.PLAYER_LEDS,
         )
         for ((id, kind) in driven) {
             val action = cards.single { it.id == id }.tryIt

@@ -117,8 +117,6 @@ class LiveReadoutTest {
         assertEquals(Readout.Finger(b), t.read(card("in.touch.1"), two, null))
         val one = PadState.EMPTY.copy(touches = listOf(a))
         assertEquals(Readout.Finger(null), t.read(card("in.touch.1"), one, null))
-        val pointer = t.read(card("android.touchpad"), one, null)
-        assertEquals(Readout.Touch(listOf(a)), pointer)
     }
 
     @Test fun textCardsListEachFieldOnceAndSayNothingWithoutAReading() {

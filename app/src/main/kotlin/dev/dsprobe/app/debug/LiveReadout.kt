@@ -16,10 +16,10 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /** Which live readout a card gets; NONE for cards with nothing the pad reports live. */
-enum class ReadoutKind { STICK, TRIGGER, BUTTONS, MOTION, FINGER, TOUCH, TEXT, BYTES, NONE }
+enum class ReadoutKind { STICK, TRIGGER, BUTTONS, MOTION, FINGER, TEXT, BYTES, NONE }
 
 private val TEXT_IDS = setOf("in.dpad", "in.sequence", "in.battery", "in.headset")
-private val MOTION_IDS = setOf("in.gyro", "in.accel", "android.sensors")
+private val MOTION_IDS = setOf("in.gyro", "in.accel")
 
 fun readoutKindOf(card: EndpointCard): ReadoutKind {
     val id = card.id
@@ -27,10 +27,9 @@ fun readoutKindOf(card: EndpointCard): ReadoutKind {
         card.rawByte >= 0 -> ReadoutKind.BYTES
         id.startsWith("in.stick.") -> ReadoutKind.STICK
         id.startsWith("in.trigger.") -> ReadoutKind.TRIGGER
-        id.startsWith("in.buttons.") || id == "android.keys" -> ReadoutKind.BUTTONS
+        id.startsWith("in.buttons.") -> ReadoutKind.BUTTONS
         id in MOTION_IDS -> ReadoutKind.MOTION
         id.startsWith("in.touch.") -> ReadoutKind.FINGER
-        id == "android.touchpad" -> ReadoutKind.TOUCH
         id in TEXT_IDS -> ReadoutKind.TEXT
         else -> ReadoutKind.NONE
     }
@@ -50,7 +49,7 @@ sealed interface Readout {
     /** A trigger's travel and its click flag. */
     data class Trigger(val value: Float, val isClicked: Boolean) : Readout
 
-    /** The buttons of a group; Android's key card lists only the held ones. */
+    /** The buttons of a group. */
     data class Buttons(val items: List<ButtonState>) : Readout
 
     /** [scale] is the largest magnitude seen on the card, never below its floor. */
@@ -67,9 +66,6 @@ sealed interface Readout {
 
     /** One finger slot; null when no finger is in it. */
     data class Finger(val touch: TouchPoint?) : Readout
-
-    /** Android's touchpad pointer: every touch the state has. */
-    data class Touch(val touches: List<TouchPoint>) : Readout
 
     data class Lines(val lines: List<String>) : Readout
 
@@ -158,7 +154,6 @@ class ReadoutTracker {
             ReadoutKind.BUTTONS -> buttons(card, state)
             ReadoutKind.MOTION -> motionOf(card.id, state)?.let { bars(card.id, it, nowMs) }
             ReadoutKind.FINGER -> Readout.Finger(state.touches.getOrNull(slotOf(card)))
-            ReadoutKind.TOUCH -> Readout.Touch(state.touches)
             ReadoutKind.TEXT -> lines(card, state)
             ReadoutKind.BYTES -> bytes(card, report)
             ReadoutKind.NONE -> null
@@ -193,13 +188,6 @@ class ReadoutTracker {
     }
 
     private fun buttons(card: EndpointCard, s: PadState): Readout.Buttons {
-        if (card.id == "android.keys") {
-            return Readout.Buttons(
-                s.held.sortedBy {
-                    it.ordinal
-                }.map { ButtonState(it.name, true) },
-            )
-        }
         val items = card.fields.mapNotNull { field ->
             buttonOf(field.id)?.let { ButtonState(field.label, it in s.held) }
         }

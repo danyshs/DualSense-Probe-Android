@@ -9,7 +9,7 @@ import dev.dsprobe.app.route.androidSourceOf
 enum class Confidence { PROVEN, DOCUMENTED, UNKNOWN }
 
 /** Which family of endpoints a card belongs to. */
-enum class CardKind { INPUT_FIELD, INPUT_RANGE, OUTPUT, FEATURE, ANDROID, AUDIO }
+enum class CardKind { INPUT_FIELD, INPUT_RANGE, OUTPUT, FEATURE, AUDIO }
 
 /**
  * One thing a card covers: an INPUT_MAP id, an `out.<field>` id, or the card's own id. [label] is
@@ -42,6 +42,8 @@ data class EndpointCard(
     val listens: List<String> = emptyList(),
     /** The guess in Android mode's units, when they differ from Direct USB's. */
     val androidGuess: String? = null,
+    /** The Android calls whose facts [androidGuess] adds; each is on one card only. */
+    val androidApis: List<String> = emptyList(),
 ) {
     init {
         require(where.isNotEmpty() && fields.isNotEmpty()) { "card $id has no location or field" }
@@ -106,7 +108,7 @@ fun guessText(card: EndpointCard, route: Route): String =
     if (route == Route.ANDROID) card.androidGuess ?: card.guess else card.guess
 
 /** The cards whose raw byte is the player LED mask: their last location line shows its value. */
-private val PLAYER_LED_CARDS = setOf("out.player_leds", "android.light.player")
+private val PLAYER_LED_CARDS = setOf("out.player_leds")
 
 private val INPUT_KINDS = setOf(CardKind.INPUT_FIELD, CardKind.INPUT_RANGE)
 
@@ -135,7 +137,7 @@ fun locationLines(
 
 /**
  * Every endpoint the guided test visits, in order: input controls, free report bytes, outputs,
- * audio, firmware, then Android's APIs. Bounded by [AppLimits.TOUR_CARDS_MAX].
+ * audio, firmware. Android's own facts ride on the cards they belong to. Bounded by [AppLimits.TOUR_CARDS_MAX].
  */
 fun buildEndpointCards(): List<EndpointCard> {
     val cards = ArrayList<EndpointCard>()
@@ -144,8 +146,7 @@ fun buildEndpointCards(): List<EndpointCard> {
     cards.addAll(outputCards())
     cards.addAll(audioCards())
     cards.add(FIRMWARE_CARD)
-    cards.addAll(androidCards())
     check(cards.size <= AppLimits.TOUR_CARDS_MAX) { "more cards than the limit: ${cards.size}" }
     check(cards.map { it.id }.toSet().size == cards.size) { "a card id repeats" }
-    return cards
+    return withAndroidFacts(cards)
 }
