@@ -30,6 +30,7 @@ import dev.dsprobe.app.debug.featureOf
 import dev.dsprobe.app.debug.fireChoice
 import dev.dsprobe.app.output.OutputController
 import dev.dsprobe.app.output.OutputsShown
+import dev.dsprobe.app.route.Feature
 import dev.dsprobe.app.route.Reduction
 import dev.dsprobe.app.route.RouteState
 import dev.dsprobe.pad.MuteLed
@@ -39,7 +40,7 @@ private const val PERCENT_MAX = 100
 private const val MS_PER_SECOND = 1_000L
 
 @Composable
-private fun ReasonLine(text: String) {
+fun ReasonLine(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.bodyMedium,
@@ -64,6 +65,30 @@ private fun muteOf(choice: TryChoice): MuteLed? = when (choice) {
     TryChoice.MUTE_ON -> MuteLed.ON
     TryChoice.MUTE_PULSE -> MuteLed.PULSE
     else -> null
+}
+
+// why a control is off: Android offers nothing for it, or there is no live route
+@Composable
+private fun OutputReason(lock: Reduction?, env: TryEnv) {
+    if (lock != null) {
+        ReasonLine(stringResource(R.string.locked_reason, reasonText(lock)))
+    } else if (!canSendOutputs(env.state)) {
+        ReasonLine(stringResource(R.string.tour_no_route))
+    }
+}
+
+/**
+ * The Outputs screen's rumble panel with every pattern as a button that plays at once. The
+ * question comes once something is rumbling.
+ */
+@Composable
+private fun RumbleTry(env: TryEnv, onTried: () -> Unit) {
+    val lock = env.locked.firstOrNull { it.feature == Feature.RUMBLE }
+    val enabled = canSendOutputs(env.state) && lock == null
+    RumbleSection(enabled, env.shown, env.outputs, playOnPick = true)
+    OutputReason(lock, env)
+    val isRumbling = env.shown.rumbleRemainingMs > 0L
+    LaunchedEffect(isRumbling) { if (isRumbling) onTried() }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -107,16 +132,7 @@ private fun OutputTry(kind: TryKind, choices: List<TryChoice>, env: TryEnv, onTr
             }
         }
     }
-    if (lock != null) {
-        ReasonLine(
-            stringResource(
-                R.string.locked_reason,
-                reasonText(lock),
-            ),
-        )
-    } else if (!canSendOutputs(env.state)) {
-        ReasonLine(stringResource(R.string.tour_no_route))
-    }
+    OutputReason(lock, env)
 }
 
 @Composable
@@ -204,6 +220,10 @@ fun TryPanel(card: EndpointCard, env: TryEnv, onTried: () -> Unit) {
                     env,
                     onTried,
                 )
+
+                TryKind.RUMBLE -> RumbleTry(env, onTried)
+
+                TryKind.ALL_OFF -> EverythingOffPanel(env, onTried)
 
                 else -> OutputTry(tryIt.kind, tryIt.choices, env, onTried)
             }

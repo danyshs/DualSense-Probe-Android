@@ -60,6 +60,9 @@ sealed interface Readout {
         val z: Float,
         val scale: Float,
         val isRawCounts: Boolean,
+        /** The gyroscope needles since the card opened; null on the accelerometer. */
+        val angles: Angles? = null,
+        val isStill: Boolean = false,
     ) : Readout
 
     /** One finger slot; null when no finger is in it. */
@@ -141,14 +144,19 @@ class ReadoutTracker {
     private var peak = 0f
     private var lastHex: String? = null
     private var changes = 0
+    private val gyro = GyroIntegrator()
 
-    fun read(card: EndpointCard, state: PadState, report: ByteArray?): Readout? {
+    /** Zeroes the gyroscope needles; they start from here again. */
+    fun resetGyro() = gyro.reset()
+
+    /** [nowMs] is the frame time; only the gyroscope needles use it. */
+    fun read(card: EndpointCard, state: PadState, report: ByteArray?, nowMs: Long = 0L): Readout? {
         if (card.id != openId) forget(card.id)
         return when (readoutKindOf(card)) {
             ReadoutKind.STICK -> stick(card.id, state)
             ReadoutKind.TRIGGER -> trigger(card.id, state)
             ReadoutKind.BUTTONS -> buttons(card, state)
-            ReadoutKind.MOTION -> motionOf(card.id, state)?.let(::bars)
+            ReadoutKind.MOTION -> motionOf(card.id, state)?.let { bars(card.id, it, nowMs) }
             ReadoutKind.FINGER -> Readout.Finger(state.touches.getOrNull(slotOf(card)))
             ReadoutKind.TOUCH -> Readout.Touch(state.touches)
             ReadoutKind.TEXT -> lines(card, state)
@@ -163,6 +171,7 @@ class ReadoutTracker {
         peak = 0f
         lastHex = null
         changes = 0
+        gyro.reset()
     }
 
     private fun stick(id: String, s: PadState): Readout.Stick? {
@@ -202,7 +211,7 @@ class ReadoutTracker {
         return if (lines.isEmpty()) null else Readout.Lines(lines)
     }
 
-    private fun bars(m: Motion): Readout.Bars {
+    private fun bars(id: String, m: Motion, nowMs: Long): Readout.Bars {
         val isRaw = m.unit == MotionUnit.RAW_COUNTS
         val floor = if (isRaw) {
             AppLimits.MOTION_RAW_SCALE_FLOOR_COUNTS
@@ -210,7 +219,8 @@ class ReadoutTracker {
             AppLimits.MOTION_SI_SCALE_FLOOR
         }
         peak = max(peak, max(abs(m.x), max(abs(m.y), abs(m.z))))
-        return Readout.Bars(m.x, m.y, m.z, max(peak, floor), isRaw)
+        val angles = if (id == "in.accel") null else gyro.step(m, nowMs)
+        return Readout.Bars(m.x, m.y, m.z, max(peak, floor), isRaw, angles, isStill(m))
     }
 
     private fun bytes(card: EndpointCard, report: ByteArray?): Readout.Bytes? {

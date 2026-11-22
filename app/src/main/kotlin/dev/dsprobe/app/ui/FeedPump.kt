@@ -19,6 +19,9 @@ class FeedPump {
     val readout: MutableState<Readout?> = mutableStateOf(null)
     private val tracker = ReadoutTracker()
 
+    /** The gyroscope card's Reset button. */
+    fun resetGyro() = tracker.resetGyro()
+
     /**
      * One pass per frame while a feed screen is on top: feed to trace, tour and runner, output
      * timers, then the two values.
@@ -26,7 +29,7 @@ class FeedPump {
     suspend fun run(session: PadSession, runner: DebugRunner) {
         val hub = session.debug
         while (true) {
-            withFrameMillis {
+            withFrameMillis { frameMs ->
                 hub.pump(runner)
                 session.outputs.tick()
                 if (traceVersion.longValue != hub.trace.version) {
@@ -34,7 +37,7 @@ class FeedPump {
                 }
                 val card = hub.tour.current
                 val next = card?.let {
-                    tracker.read(it, session.live.takeFrame().state, hub.trace.latestReport)
+                    tracker.read(it, session.live.takeFrame().state, hub.trace.latestReport, frameMs)
                 }
                 if (readout.value != next) readout.value = next
             }

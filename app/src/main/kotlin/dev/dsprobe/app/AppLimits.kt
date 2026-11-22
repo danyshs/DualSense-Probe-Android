@@ -100,4 +100,19 @@ object AppLimits {
     const val MOTION_RAW_SCALE_FLOOR_COUNTS = 256f
     const val MOTION_SI_SCALE_FLOOR = 1f
     const val ACCEL_TILT_DEGREES_MAX = 8f
+
+    // a guess: a frame gap longer than this (a stall, a paused app) counts as this much
+    const val GYRO_STEP_MS_MAX = 100L
+    const val GYRO_RATE_DEG_PER_S_MAX = 2_000f // a guess: past any hand-held turn
+
+    // a guess: a pad lying on a table reads well below these
+    const val GYRO_STILL_RAD_PER_S = 0.05f
+    const val GYRO_STILL_RAW_COUNTS = 16f
+
+    // a guess: the raw scale is untested (P16), so the needle says so
+    const val GYRO_RAW_DEG_PER_S_PER_COUNT = 0.05f
+    const val ACCEL_REST_M_PER_S2 = 9.8f
+
+    // a guess: moderate, felt but not harsh; the controller adds the time limit
+    const val ALL_ON_RUMBLE_INTENSITY = 100
 }

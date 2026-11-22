@@ -30,7 +30,7 @@ private val OUTPUT_SPECS: List<OutputSpec> = listOf(
         ),
         "The two vibration motors, left and right.",
         listOf("0 = still, 255 = full strength for each."),
-        "Tap Try it and feel left, right, both or a pattern.",
+        "Set each motor, or tap a pattern to play it; Stop ends it.",
         listOf("P31"), listOf("out.rumble"), TryIt.Action(TryKind.RUMBLE),
     ),
     OutputSpec(
@@ -38,7 +38,7 @@ private val OUTPUT_SPECS: List<OutputSpec> = listOf(
         listOf(OutField(OutputField.RUMBLE_BOTH_MODES, "Everything off", "the whole report")),
         "The all-off report: rumble in both modes, both triggers, the lightbar, the LEDs and the " +
             "mute LED back to nothing.",
-        listOf("Every value 0."), "Tap Try it, then check that everything on the pad went quiet.",
+        listOf("Every value 0."), "Tap Turn everything on, check the pad, then Everything off. The table shows what each output was last sent.",
         listOf("P45"), listOf("out.release"), TryIt.Action(TryKind.ALL_OFF),
     ),
     OutputSpec(

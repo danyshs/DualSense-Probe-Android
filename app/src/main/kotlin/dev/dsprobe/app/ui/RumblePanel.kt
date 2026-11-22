@@ -25,6 +25,7 @@ import dev.dsprobe.app.R
 import dev.dsprobe.app.output.OutputController
 import dev.dsprobe.app.output.OutputsShown
 import dev.dsprobe.app.output.PatternId
+import dev.dsprobe.app.output.patternButtons
 import dev.dsprobe.app.ui.theme.NumberStyle
 import dev.dsprobe.pad.Limits
 import dev.dsprobe.pad.RumbleMode
@@ -125,19 +126,33 @@ private fun Sliders(enabled: Boolean, inputs: RumbleInputs, outputs: OutputContr
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Patterns(enabled: Boolean, inputs: RumbleInputs, outputs: OutputController) {
+private fun Patterns(
+    enabled: Boolean,
+    inputs: RumbleInputs,
+    outputs: OutputController,
+    playOnPick: Boolean,
+) {
+    val rateHz = inputs.rateHz.roundToInt()
+    val play = { id: PatternId ->
+        outputs.playPattern(
+            id,
+            inputs.left.roundToInt(),
+            inputs.right.roundToInt(),
+            (inputs.durationS * MS_PER_SECOND).roundToInt(),
+            rateHz,
+        )
+    }
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        for (id in PatternId.entries) {
+        for (id in patternButtons()) {
             PickButton(patternLabelRes(id), inputs.pattern == id, enabled) {
-                inputs.pattern =
-                    id
+                inputs.pattern = id
+                if (playOnPick) play(id)
             }
         }
     }
-    val rateHz = inputs.rateHz.roundToInt()
     Text(stringResource(R.string.rumble_pulse_rate, rateHz), maxLines = 1, softWrap = false)
     Slider(
         inputs.rateHz,
@@ -162,19 +177,7 @@ private fun Patterns(enabled: Boolean, inputs: RumbleInputs, outputs: OutputCont
         steps = DURATION_SLIDER_STEPS,
     )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        val play = {
-            outputs.playPattern(
-                inputs.pattern,
-                inputs.left.roundToInt(),
-                inputs.right.roundToInt(),
-                (
-                    inputs.durationS *
-                        MS_PER_SECOND
-                    ).roundToInt(),
-                rateHz,
-            )
-        }
-        TonalButton(play, enabled = enabled) {
+        TonalButton({ play(inputs.pattern) }, enabled = enabled) {
             Text(stringResource(R.string.rumble_play), maxLines = 1, softWrap = false)
         }
         QuietButton({
@@ -185,14 +188,22 @@ private fun Patterns(enabled: Boolean, inputs: RumbleInputs, outputs: OutputCont
     }
 }
 
-/** Direct USB mode picker, per-motor intensity, the patterns, and a strip of what was sent. */
+/**
+ * Direct USB mode picker, per-motor intensity, the patterns, and a strip of what was sent. With
+ * [playOnPick] a pattern button plays at once; on the Outputs screen it only selects.
+ */
 @Composable
-fun RumbleSection(enabled: Boolean, shown: OutputsShown, outputs: OutputController) {
+fun RumbleSection(
+    enabled: Boolean,
+    shown: OutputsShown,
+    outputs: OutputController,
+    playOnPick: Boolean = false,
+) {
     val inputs = remember { RumbleInputs() }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ModePicker(enabled, shown.rumbleMode, outputs)
         Sliders(enabled, inputs, outputs)
-        Patterns(enabled, inputs, outputs)
+        Patterns(enabled, inputs, outputs, playOnPick)
         Text(
             stringResource(
                 R.string.rumble_status,

@@ -36,6 +36,8 @@ import dev.dsprobe.app.debug.barOrientation
 import dev.dsprobe.app.debug.readoutKindOf
 import dev.dsprobe.app.debug.triggerText
 import dev.dsprobe.app.live.Frame
+import dev.dsprobe.app.live.Motion
+import dev.dsprobe.app.live.MotionUnit
 import dev.dsprobe.app.live.PadState
 import dev.dsprobe.app.live.TouchPoint
 import dev.dsprobe.app.route.Route
@@ -55,7 +57,7 @@ private const val TOUCH_CENTRE = 0.5f // a touch is 0..1 across the pad; a bar r
 
 /** The card's live readout, or nothing for a card the pad reports nothing live for. */
 @Composable
-fun ReadoutArea(card: EndpointCard, readout: Readout?, route: Route) {
+fun ReadoutArea(card: EndpointCard, readout: Readout?, route: Route, onResetGyro: () -> Unit) {
     val kind = readoutKindOf(card)
     if (kind == ReadoutKind.NONE) return
     Text(
@@ -77,7 +79,7 @@ fun ReadoutArea(card: EndpointCard, readout: Readout?, route: Route) {
 
         is Readout.Buttons -> ButtonsReadout(readout)
 
-        is Readout.Bars -> MotionBars(readout, if (card.id == "in.accel") "in.accel" else "in.gyro")
+        is Readout.Bars -> MotionReadout(readout, card.id == "in.accel", onResetGyro)
 
         is Readout.Finger -> FingerReadout(readout, route)
 
@@ -252,6 +254,27 @@ private fun ButtonsReadout(r: Readout.Buttons) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (r.items.isEmpty()) HeldPill(null, false)
         for (item in r.items) HeldPill(item.label, item.isDown)
+    }
+}
+
+/** The visual check first (bubble level or dials), the bars and numbers under it. */
+@Composable
+private fun MotionReadout(r: Readout.Bars, isAccel: Boolean, onResetGyro: () -> Unit) {
+    val angles = r.angles
+    val unit = if (r.isRawCounts) MotionUnit.RAW_COUNTS else MotionUnit.SI
+    if (isAccel) {
+        BubbleLevel(Motion(r.x, r.y, r.z, unit))
+    } else if (angles != null) {
+        GyroDials(r, angles, onResetGyro)
+    }
+    MotionBars(r, if (isAccel) "in.accel" else "in.gyro")
+    val hints = if (isAccel) {
+        listOf(R.string.accel_hint_flat, R.string.accel_hint_edge)
+    } else {
+        listOf(R.string.gyro_hint_still, R.string.gyro_hint_turn)
+    }
+    for (hint in hints) {
+        Text(stringResource(hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

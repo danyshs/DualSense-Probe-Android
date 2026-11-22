@@ -163,14 +163,20 @@ private fun Reaction(tour: EndpointTour, env: TryEnv) {
 }
 
 @Composable
-private fun CardBody(tour: EndpointTour, card: EndpointCard, env: TryEnv, readout: Readout?) {
+private fun CardBody(
+    tour: EndpointTour,
+    card: EndpointCard,
+    env: TryEnv,
+    readout: Readout?,
+    onResetGyro: () -> Unit,
+) {
     Column(
         Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val route = routeOf(env.state)
         CardHead(card, env.shown.playerLeds, route)
-        ReadoutArea(card, readout, route)
+        ReadoutArea(card, readout, route, onResetGyro)
         TryPanel(card, env, tour::markTried)
         if (tour.reactionPending) {
             Reaction(tour, env)
@@ -356,7 +362,7 @@ fun GuidedScreen(
             if (card == null) {
                 Summary(tour, share)
             } else {
-                CardBody(tour, card, env, pump.readout.value)
+                CardBody(tour, card, env, pump.readout.value, pump::resetGyro)
             }
         }
         if (card != null) {

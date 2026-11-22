@@ -43,6 +43,9 @@ val PATTERNS: Map<PatternId, PatternDef> = mapOf(
     PatternId.ENGINE to PatternDef(Fill.REPEAT, listOf(step(80, 255, 100), step(80, 90, 100))),
 )
 
+/** Every pattern in [PATTERNS], one button each, in the order they are defined. */
+fun patternButtons(): List<PatternId> = PATTERNS.keys.toList()
+
 /**
  * The cycle with its durations scaled so they add up to [targetMs]; every step keeps at least 1 ms.
  */
