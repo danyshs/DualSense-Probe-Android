@@ -142,15 +142,12 @@
     <string name="tour_title">Guided test</string>
     <string name="tour_leave">Leave guided test</string>
     <string name="tour_no_android_event">Android gives no event for this (route: Android mode)</string>
-    <string name="tour_nothing">Nothing seen yet: use the control while this card is open.</string>
     <string name="tour_next">Next</string>
     <string name="tour_back">Back</string>
     <string name="tour_finished">Guided test finished. Cards visited: %1$d. Share the log.</string>
     <string name="tour_tag_proven">Proven</string>
     <string name="tour_tag_documented">Documented, untested</string>
     <string name="tour_tag_unknown">Unknown</string>
-    <string name="tour_seen">Seen: %1$s</string>
-    <string name="tour_live_raw">Live raw value: %1$s</string>
     <string name="tour_no_raw">Live raw value: no Direct USB report yet</string>
     <string name="trace_empty">No rows yet: press or move something on the pad.</string>
     <string name="trace_paused">Paused: the list is frozen, rows keep arriving.</string>
@@ -245,6 +242,11 @@
     <string name="tour_sheet_all">All rows</string>
     <string name="tour_sheet_empty">No rows yet for this endpoint.</string>
     <string name="tour_live_value">Live value</string>
+    <string name="readout_none">No reading from the pad yet.</string>
+    <string name="readout_pressed">Pressed</string>
+    <string name="readout_released">Released</string>
+    <string name="readout_min_max">min %1$s   max %2$s</string>
+    <string name="readout_bytes_changed">Changes seen on this card: %1$d</string>
     <string name="reaction_question">Did the pad react?</string>
     <string name="reaction_yes">Yes</string>
     <string name="reaction_no">No</string>

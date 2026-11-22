@@ -53,8 +53,10 @@ import dev.dsprobe.app.debug.Confidence
 import dev.dsprobe.app.debug.DebugRunner
 import dev.dsprobe.app.debug.EndpointCard
 import dev.dsprobe.app.debug.EndpointTour
+import dev.dsprobe.app.debug.Readout
 import dev.dsprobe.app.debug.RowLines
 import dev.dsprobe.app.debug.Verdict
+import dev.dsprobe.app.debug.guessText
 import dev.dsprobe.app.debug.locationLine
 import dev.dsprobe.app.debug.sheetLines
 import dev.dsprobe.app.output.OutputsShown
@@ -66,7 +68,6 @@ import dev.dsprobe.app.route.boundary
 import dev.dsprobe.app.ui.theme.NumberStyle
 
 private const val TAG = "GuidedScreen"
-private const val SEEN_SHOWN_MAX = 3
 private const val DRAG_PX_MIN = 12f
 private const val HANDLE_WIDTH_DP = 40
 private const val HANDLE_HEIGHT_DP = 4
@@ -131,42 +132,7 @@ private fun CardHead(card: EndpointCard, playerLeds: Int, route: Route) {
         style = NumberStyle,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    Text(card.guess, style = MaterialTheme.typography.bodyLarge)
-}
-
-@Composable
-private fun LiveValue(tour: EndpointTour, card: EndpointCard, liveRaw: String?) {
-    val seen = tour.seenNow
-    Text(
-        stringResource(R.string.tour_live_value),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    if (card.rawByte >= 0) {
-        val text = if (liveRaw == null) {
-            stringResource(R.string.tour_no_raw)
-        } else {
-            stringResource(R.string.tour_live_raw, liveRaw)
-        }
-        Text(text, style = NumberStyle.copy(fontWeight = FontWeight.Bold))
-    }
-    if (seen.isEmpty()) {
-        Text(
-            stringResource(R.string.tour_nothing),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        return
-    }
-    Text(
-        stringResource(R.string.tour_seen, seen.last().headline),
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-    )
-    for (row in seen.takeLast(SEEN_SHOWN_MAX).asReversed()) {
-        Text(row.headline, style = NumberStyle.copy(fontWeight = FontWeight.Bold))
-        Text(row.location, style = MONO_SMALL, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+    Text(guessText(card, route), style = MaterialTheme.typography.bodyLarge)
 }
 
 private fun reactionLabel(v: Verdict?): Int? = when (v) {
@@ -197,13 +163,14 @@ private fun Reaction(tour: EndpointTour, env: TryEnv) {
 }
 
 @Composable
-private fun CardBody(tour: EndpointTour, card: EndpointCard, env: TryEnv, liveRaw: String?) {
+private fun CardBody(tour: EndpointTour, card: EndpointCard, env: TryEnv, readout: Readout?) {
     Column(
         Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        CardHead(card, env.shown.playerLeds, routeOf(env.state))
-        LiveValue(tour, card, liveRaw)
+        val route = routeOf(env.state)
+        CardHead(card, env.shown.playerLeds, route)
+        ReadoutArea(card, readout, route)
         TryPanel(card, env, tour::markTried)
         if (tour.reactionPending) {
             Reaction(tour, env)
@@ -389,7 +356,7 @@ fun GuidedScreen(
             if (card == null) {
                 Summary(tour, share)
             } else {
-                CardBody(tour, card, env, pump.liveRaw.value)
+                CardBody(tour, card, env, pump.readout.value)
             }
         }
         if (card != null) {

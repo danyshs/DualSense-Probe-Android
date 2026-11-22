@@ -105,6 +105,7 @@ private fun stickGuess(side: String, axis: String): FieldGuess {
             "How far the $lower stick is pushed sideways.",
             "0 = full left, 128 = centre, 255 = full right.",
             "Push the $lower stick sideways.",
+            "-1.0 = full left, 0.0 = centre, +1.0 = full right.",
         )
     }
     return FieldGuess(
@@ -113,6 +114,8 @@ private fun stickGuess(side: String, axis: String): FieldGuess {
         "0 and 255 are the two ends and 128 is centre. FACTS does not say which end is up: the " +
             "live value shows it.",
         "Push the $lower stick up, then down.",
+        "-1.0 and +1.0 are the two ends and 0.0 is centre. FACTS does not say which end is up: " +
+            "the live value shows it.",
     )
 }
 
@@ -121,6 +124,7 @@ private fun triggerGuess(side: String): FieldGuess = FieldGuess(
     "How far the $side trigger is squeezed.",
     "0 = untouched, 255 = squeezed all the way.",
     "Squeeze $side slowly from rest to the end.",
+    "0.0 = untouched, 1.0 = squeezed all the way.",
 )
 
 private fun motionGuess(isGyro: Boolean, axis: String): FieldGuess {

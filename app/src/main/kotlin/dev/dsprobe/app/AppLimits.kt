@@ -95,5 +95,9 @@ object AppLimits {
     const val CLICK_RIPPLE_MS = 400L
     const val CLICK_RIPPLES_MAX = 4
     const val MOTION_TRACE_SAMPLES_MAX = 120
+
+    // a guess: a still pad's noise should not fill the bars; tune on the phone
+    const val MOTION_RAW_SCALE_FLOOR_COUNTS = 256f
+    const val MOTION_SI_SCALE_FLOOR = 1f
     const val ACCEL_TILT_DEGREES_MAX = 8f
 }

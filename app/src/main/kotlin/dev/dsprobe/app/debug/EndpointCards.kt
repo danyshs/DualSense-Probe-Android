@@ -37,6 +37,8 @@ data class EndpointCard(
     val rawMask: Int = BYTE_ALL,
     /** Control IDs (or prefixes) whose trace rows this card listens to while it is open. */
     val listens: List<String> = emptyList(),
+    /** The guess in Android mode's units, when they differ from Direct USB's. */
+    val androidGuess: String? = null,
 ) {
     /** A button the user presses by hand: no Try it, and no reaction question. */
     val isButton: Boolean get() = id.startsWith("in.button.") || id == "android.keys" ||
@@ -96,9 +98,13 @@ private fun inputCard(src: FieldSource): EndpointCard {
         confidenceOf(
             src.factsRow,
         ),
-        tryIt, listens = listOf(src.id),
+        tryIt, listens = listOf(src.id), androidGuess = guess.androidText,
     )
 }
+
+/** The card's guess in the live route's units. */
+fun guessText(card: EndpointCard, route: Route): String =
+    if (route == Route.ANDROID) card.androidGuess ?: card.guess else card.guess
 
 /**
  * A stretch of report 0x01 no INPUT_MAP entry claims: whole bytes [first]..[last], or part of one
@@ -535,7 +541,12 @@ private val PLAYER_LED_CARDS = setOf("out.player_leds", "android.light.player")
  * drive it. On the Android route an input card names its Android source instead of the report
  * byte; [noAndroidEvent] is the text for a field Android has no event for.
  */
-fun locationLine(card: EndpointCard, playerLeds: Int, route: Route, noAndroidEvent: String): String {
+fun locationLine(
+    card: EndpointCard,
+    playerLeds: Int,
+    route: Route,
+    noAndroidEvent: String,
+): String {
     if (route == Route.ANDROID && card.kind in INPUT_KINDS) {
         return androidSourceOf(card.id) ?: noAndroidEvent
     }

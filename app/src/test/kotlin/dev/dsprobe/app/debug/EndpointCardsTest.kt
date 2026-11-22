@@ -222,7 +222,8 @@ class EndpointCardsTest {
 
     @Test fun theLocationLineOfAPlayerLedCardCarriesTheLiveByte() {
         val leds = cards.single { it.id == "out.player_leds" }
-        assertTrue(locationLine(leds, 0x10, Route.DIRECT_USB, NO_EVENT).endsWith("0b00010000 = 0x10, LED 5"))
+        val line = locationLine(leds, 0x10, Route.DIRECT_USB, NO_EVENT)
+        assertTrue(line.endsWith("0b00010000 = 0x10, LED 5"))
         assertEquals(
             cards.single { it.id == "out.lightbar" }.where,
             locationLine(
