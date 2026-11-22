@@ -50,6 +50,7 @@ import dev.dsprobe.app.R
 import dev.dsprobe.app.audio.AndroidMic
 import dev.dsprobe.app.audio.AndroidTone
 import dev.dsprobe.app.debug.Confidence
+import dev.dsprobe.app.debug.connectionOf
 import dev.dsprobe.app.debug.DebugRunner
 import dev.dsprobe.app.debug.EndpointCard
 import dev.dsprobe.app.debug.EndpointTour
@@ -176,6 +177,7 @@ private fun CardBody(
     ) {
         val route = routeOf(env.state)
         CardHead(card, env.shown.playerLeds, route)
+        ExpectedHere(card.id, connectionOf(env.state))
         ReadoutArea(card, readout, route, onResetGyro)
         TryPanel(card, env, tour::markTried)
         if (tour.reactionPending) {
@@ -351,6 +353,8 @@ fun GuidedScreen(
         tone.stop()
     }
     val env = TryEnv(view.state, view.locked, view.shown, session.outputs, mic, tone, micTap)
+    val connection = connectionOf(view.state)
+    LaunchedEffect(card?.id, connection) { tour.noteConnection(connection) }
     val share: () -> Unit = {
         boundary("share log", {
             Log.w(TAG, it)
@@ -358,6 +362,7 @@ fun GuidedScreen(
     }
     Column(Modifier.fillMaxSize()) {
         CloseBar(R.string.tour_title, R.string.tour_leave, actions.onUp)
+        ConnectionLine(connection)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (card == null) {
                 Summary(tour, share)

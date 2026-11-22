@@ -1,6 +1,8 @@
 package dev.dsprobe.app.ui
 
 import dev.dsprobe.app.AppLimits
+import dev.dsprobe.app.debug.TiltAxis
+import dev.dsprobe.app.debug.tiltSign
 import dev.dsprobe.app.live.Frame
 import dev.dsprobe.app.live.Motion
 import dev.dsprobe.app.live.MotionUnit
@@ -159,7 +161,8 @@ fun tiltOf(accel: Motion?): Tilt? {
     val length = sqrt(accel.x * accel.x + accel.y * accel.y + accel.z * accel.z)
     if (length < GRAVITY_LENGTH_MIN) return null
     return Tilt(
-        rollDegrees = (accel.x / length) * AppLimits.ACCEL_TILT_DEGREES_MAX,
+        rollDegrees = tiltSign(TiltAxis.HOME_ROLL) * (accel.x / length) *
+            AppLimits.ACCEL_TILT_DEGREES_MAX,
         pitchDegrees = (accel.y / length) * AppLimits.ACCEL_TILT_DEGREES_MAX,
     )
 }

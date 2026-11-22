@@ -62,6 +62,8 @@ sealed interface Readout {
         /** The gyroscope needles since the card opened; null on the accelerometer. */
         val angles: Angles? = null,
         val isStill: Boolean = false,
+        /** The accelerometer reading, for the picture's pitch and roll. */
+        val gravity: Motion? = null,
     ) : Readout
 
     /** One finger slot; null when no finger is in it. */
@@ -152,7 +154,7 @@ class ReadoutTracker {
             ReadoutKind.STICK -> stick(card.id, state)
             ReadoutKind.TRIGGER -> trigger(card.id, state)
             ReadoutKind.BUTTONS -> buttons(card, state)
-            ReadoutKind.MOTION -> motionOf(card.id, state)?.let { bars(card.id, it, nowMs) }
+            ReadoutKind.MOTION -> motionOf(card.id, state)?.let { bars(it, state, nowMs) }
             ReadoutKind.FINGER -> Readout.Finger(state.touches.getOrNull(slotOf(card)))
             ReadoutKind.TEXT -> lines(card, state)
             ReadoutKind.BYTES -> bytes(card, report)
@@ -199,7 +201,7 @@ class ReadoutTracker {
         return if (lines.isEmpty()) null else Readout.Lines(lines)
     }
 
-    private fun bars(id: String, m: Motion, nowMs: Long): Readout.Bars {
+    private fun bars(m: Motion, s: PadState, nowMs: Long): Readout.Bars {
         val isRaw = m.unit == MotionUnit.RAW_COUNTS
         val floor = if (isRaw) {
             AppLimits.MOTION_RAW_SCALE_FLOOR_COUNTS
@@ -207,8 +209,9 @@ class ReadoutTracker {
             AppLimits.MOTION_SI_SCALE_FLOOR
         }
         peak = max(peak, max(abs(m.x), max(abs(m.y), abs(m.z))))
-        val angles = if (id == "in.accel") null else gyro.step(m, nowMs)
-        return Readout.Bars(m.x, m.y, m.z, max(peak, floor), isRaw, angles, isStill(m))
+        // the yaw needle comes from the gyro on both motion cards; the gyro card's m is that gyro
+        val angles = s.gyro?.let { gyro.step(it, nowMs) }
+        return Readout.Bars(m.x, m.y, m.z, max(peak, floor), isRaw, angles, isStill(m), s.accel)
     }
 
     private fun bytes(card: EndpointCard, report: ByteArray?): Readout.Bytes? {

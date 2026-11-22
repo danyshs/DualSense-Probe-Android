@@ -16,6 +16,7 @@ import dev.dsprobe.app.debug.LogInput
 import dev.dsprobe.app.debug.RunnerEnv
 import dev.dsprobe.app.debug.TestResult
 import dev.dsprobe.app.debug.buildCatalogue
+import dev.dsprobe.app.debug.connectionOf
 import dev.dsprobe.app.debug.padHeaderFields
 import dev.dsprobe.app.debug.phoneHeaderFields
 import dev.dsprobe.app.debug.renderLog
@@ -111,7 +112,7 @@ class PadSession(context: Context) : RouteHost {
         val phone =
             askOrNull("phone header", ::logWarn) { phoneHeaderFields(appContext) }
                 ?: listOf("header" to "unavailable")
-        val header = phone +
+        val header = phone + ("connection" to connectionOf(controller.state.value).tag) +
             padHeaderFields(
                 pad?.productId,
                 pad?.transport,

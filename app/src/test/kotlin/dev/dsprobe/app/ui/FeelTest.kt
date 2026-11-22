@@ -100,7 +100,8 @@ class FeelTest {
         val flat = tiltOf(Motion(0f, 0f, 9.8f, MotionUnit.SI))!!
         assertEquals(0f, flat.rollDegrees, 0.001f)
         val sideways = tiltOf(Motion(9.8f, 0f, 0f, MotionUnit.SI))!!
-        assertEquals(AppLimits.ACCEL_TILT_DEGREES_MAX, sideways.rollDegrees, 0.001f)
+        // x positive is a pad tilted left, which turns the picture left (negative)
+        assertEquals(-AppLimits.ACCEL_TILT_DEGREES_MAX, sideways.rollDegrees, 0.001f)
         assertNull(tiltOf(Motion(1000f, 0f, 0f, MotionUnit.RAW_COUNTS)))
         assertNull(tiltOf(null))
         assertNull(tiltOf(Motion(0f, 0f, 0.01f, MotionUnit.SI)))

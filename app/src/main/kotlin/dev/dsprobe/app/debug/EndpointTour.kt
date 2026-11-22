@@ -19,12 +19,14 @@ data class CardAnswer(
     val verdict: Verdict?,
     val note: String,
     val seen: List<RowLines> = emptyList(),
+    val connection: Connection = Connection.NONE,
 )
 
 private class Entry(val card: EndpointCard) {
     var verdict: Verdict? = null
     var tried = false
     var note = ""
+    var connection = Connection.NONE
     val seen = ArrayList<RowLines>()
 }
 
@@ -51,7 +53,10 @@ class EndpointTour(val cards: List<EndpointCard>) {
 
     /** Everything visited so far, in card order, for the log. */
     val answers: List<CardAnswer> get() = entries.values.map {
-        CardAnswer(it.card.id, it.card.confidence, it.verdict, it.note, it.seen.toList())
+        CardAnswer(
+            it.card.id, it.card.confidence, it.verdict, it.note, it.seen.toList(),
+            it.connection,
+        )
     }
 
     /** Rows seen on the open card, newest last. Reading it subscribes the screen. */
@@ -80,6 +85,11 @@ class EndpointTour(val cards: List<EndpointCard>) {
         if (entry.tried) return
         entry.tried = true
         version += 1
+    }
+
+    /** The connection live while the open card is shown; the log carries the last one noted. */
+    fun noteConnection(connection: Connection) {
+        entryOf(current)?.connection = connection
     }
 
     fun start() {
@@ -165,12 +175,13 @@ fun tourLines(answers: List<CardAnswer>): List<String> {
     val out = ArrayList<String>()
     for (a in answers) {
         out.add(
-            "endpoint id=${a.cardId} confidence=${a.confidence} answer=${a.verdict ?: "none"} " +
+            "endpoint id=${a.cardId} connection=${a.connection.tag} confidence=${a.confidence} answer=${a.verdict ?: "none"} " +
                 "seen=${a.seen.size} note=${a.note.ifEmpty { "-" }}",
         )
         for (row in a.seen) {
             out.add(
-                "endpoint-seen id=${a.cardId} ${row.headline} | ${row.location}",
+                "endpoint-seen id=${a.cardId} ${row.headline} | ${row.location} | " +
+                    "connection=${a.connection.tag}",
             )
         }
     }

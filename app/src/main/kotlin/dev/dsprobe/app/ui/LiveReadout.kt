@@ -260,6 +260,7 @@ private fun ButtonsReadout(r: Readout.Buttons) {
 private fun MotionReadout(r: Readout.Bars, isAccel: Boolean, onResetGyro: () -> Unit) {
     val angles = r.angles
     val unit = if (r.isRawCounts) MotionUnit.RAW_COUNTS else MotionUnit.SI
+    TiltPicture(r.gravity, angles, if (isAccel) onResetGyro else null)
     if (isAccel) {
         BubbleLevel(Motion(r.x, r.y, r.z, unit))
     } else if (angles != null) {
